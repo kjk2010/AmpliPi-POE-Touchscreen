@@ -11,6 +11,7 @@
 #include <TFT_eSPI.h>
 #include <ArduinoJson.h>
 #include <utils.h>
+#include <TJpg_Decoder.h>
 
 #define ETH_CLK_MODE ETH_CLOCK_GPIO17_OUT
 #define ETH_PHY_POWER 12
@@ -29,7 +30,7 @@ static bool eth_connected = false;
 /* Configure screen colors and layout */
 /**************************************/
 // How quickly does the metadata refresh (in milliseconds)
-#define REFRESH_INTERVAL 5000
+#define REFRESH_INTERVAL 2000
 
 // Colors
 #define GREY 0x5AEB
@@ -38,69 +39,90 @@ static bool eth_connected = false;
 // Source bar location
 #define SRCBAR_X 0
 #define SRCBAR_Y 0
-#define SRCBAR_W 240
+#define SRCBAR_W TFT_WIDTH
 #define SRCBAR_H 36
 
-#define SRCBUTTON_X 200
+#define SRCBUTTON_X (TFT_WIDTH - 40) // Top right side of screen
 #define SRCBUTTON_Y 0
 #define SRCBUTTON_W 40 // Oversize the button for easy selection
 #define SRCBUTTON_H 40 // Oversize the button for easy selection
 
+// Settings Screen Buttons
 #define LEFTBUTTON_X 0
-#define LEFTBUTTON_Y 282
+#define LEFTBUTTON_Y (TFT_HEIGHT - 38)
 #define LEFTBUTTON_W 100
 #define LEFTBUTTON_H 38
 
 #define RIGHTBUTTON_X 140
-#define RIGHTBUTTON_Y 282
+#define RIGHTBUTTON_Y (TFT_HEIGHT - 38)
 #define RIGHTBUTTON_W 100
 #define RIGHTBUTTON_H 38
 
 #define SETTINGBUTTON_X 102
-#define SETTINGBUTTON_Y 282
+#define SETTINGBUTTON_Y (TFT_HEIGHT - 38)
 #define SETTINGBUTTON_W 36
 #define SETTINGBUTTON_H 36
 
 // Main area, normally where metadata is shown
 #define MAINZONE_X 0
 #define MAINZONE_Y 36
-#define MAINZONE_W 240
-#define MAINZONE_H 284 // From below the source top bar to the bottom of the screen
+#define MAINZONE_W TFT_WIDTH
+#define MAINZONE_H (TFT_HEIGHT - 36) // From below the source top bar to the bottom of the screen
 
 // Album art location
 #define ALBUMART_X 60
 #define ALBUMART_Y 36
+#define ALBUMART_W (TFT_WIDTH - 120)
+#define ALBUMART_H ALBUMART_W
+
+// Metadata text location
+#define METATEXT_X 0
+#define METATEXT_Y (ALBUMART_Y + ALBUMART_H + 10) // Start Metadata text 10px below the album art
+#define METATEXT_W TFT_WIDTH
+#define METATEXT_H 90
 
 // Warning zone
 #define WARNZONE_X 0
-#define WARNZONE_Y 235
-#define WARNZONE_W 240
+#define WARNZONE_Y (TFT_HEIGHT - 85) // Just above volume bar(s)
+#define WARNZONE_W TFT_WIDTH
 #define WARNZONE_H 15
 
 // Mute button location
 #define MUTE_X 0
-#define MUTE1_Y 247 // (upper)
-#define MUTE2_Y 284 // (lower)
+#define MUTE1_Y (TFT_HEIGHT - 73) // (upper)
+#define MUTE2_Y (TFT_HEIGHT - 36) // (lower)
 #define MUTE_W 36
 #define MUTE_H 36
 
 // Volume control bar position and size
 #define VOLBAR_X 45
-#define VOLBAR1_Y 260 // (upper)
-#define VOLBAR2_Y 297 // (lower)
-#define VOLBAR_W 150
+#define VOLBAR1_Y (TFT_HEIGHT - 60) // (upper)
+#define VOLBAR2_Y (TFT_HEIGHT - 23) // (lower)
+#define VOLBAR_W (TFT_WIDTH - 90) // 150 for 240w screen, 230 for 320ww screen
 #define VOLBAR_H 6
 
 // Volume control bar zone size
 #define VOLBARZONE_X 36
-#define VOLBARZONE1_Y 247 // (upper)
-#define VOLBARZONE2_Y 284 // (lower)
-#define VOLBARZONE_W 204
+#define VOLBARZONE1_Y (TFT_HEIGHT - 73) // (upper)
+#define VOLBARZONE2_Y (TFT_HEIGHT - 36) // (lower)
+#define VOLBARZONE_W (TFT_WIDTH - 36)
 #define VOLBARZONE_H 36
 
-// Maximum length of the source name
-#define SRC_NAME_LEN 22
+#if TFT_WIDTH <= 240
+    // Maximum length of the source name
+    #define SRC_NAME_LEN 18
 
+    // Max length for title and artist metadata
+    #define TITLE_LEN 18
+    #define ARTIST_LEN 18
+#else
+    // Maximum length of the source name
+    #define SRC_NAME_LEN 25
+
+    // Max length for title and artist metadata
+    #define TITLE_LEN 25
+    #define ARTIST_LEN 25
+#endif
 
 /******************************/
 /* Configure system variables */
@@ -391,26 +413,6 @@ void touch_calibrate()
     }
 }
 
-// Function used for processing BMP images
-uint16_t read16(fs::File &f)
-{
-    uint16_t result;
-    ((uint8_t *)&result)[0] = f.read(); // LSB
-    ((uint8_t *)&result)[1] = f.read(); // MSB
-    return result;
-}
-
-// Function used for processing BMP images
-uint32_t read32(fs::File &f)
-{
-    uint32_t result;
-    ((uint8_t *)&result)[0] = f.read(); // LSB
-    ((uint8_t *)&result)[1] = f.read();
-    ((uint8_t *)&result)[2] = f.read();
-    ((uint8_t *)&result)[3] = f.read(); // MSB
-    return result;
-}
-
 
 void WiFiEvent(WiFiEvent_t event)
 {
@@ -479,7 +481,7 @@ void clearWarning()
 }
 
 
-// Show the album art file on screen
+// Show bitmap image on screen
 void drawBmp(const char *filename, int16_t x, int16_t y)
 {
 
@@ -551,6 +553,24 @@ void drawBmp(const char *filename, int16_t x, int16_t y)
             Serial.println("BMP format not recognized.");
     }
     bmpFS.close();
+}
+
+
+// This next function will be called during decoding of the jpeg file to
+// render each block to the TFT
+bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap)
+{
+   // Stop further decoding as image is running off bottom of screen
+  if ( y >= tft.height() ) return 0;
+
+  // This function will clip the image block rendering automatically at the TFT boundaries
+  tft.pushImage(x, y, w, h, bitmap);
+
+  // This might work instead if you adapt the sketch to use the Adafruit_GFX library
+  // tft.drawRGBBitmap(x, y, bitmap, w, h);
+
+  // Return 1 to decode next block
+  return 1;
 }
 
 
@@ -675,12 +695,12 @@ bool downloadAlbumart(String streamID)
 {
     HTTPClient http;
     bool outcome = true;
-    String url = "http://" + amplipiHostIP + "/api/streams/image/" + streamID;
-    String filename = "/albumart.bmp";
+    String url = "http://" + amplipiHostIP + "/api/streams/image/" + streamID;// + '?width=' + String(ALBUMART_W);
+    String filename = "/albumart.jpg";
 
     // configure server and url
-    http.setConnectTimeout(5000);
-    http.setTimeout(5000);
+    http.setConnectTimeout(20000);
+    http.setTimeout(20000);
     http.begin(url);
 
     // start connection and send HTTP header
@@ -711,45 +731,9 @@ bool downloadAlbumart(String streamID)
         // file found at server
         if (httpCode == HTTP_CODE_OK)
         {
-            // get lenght of document (is -1 when Server sends no Content-Length header)
-            int total = http.getSize();
-            int len = total;
+            http.writeToStream(&f);
 
-#if DEBUGAPIREQ
-            Serial.println("HTTP SIZE IS " + String(total));
-#endif
-
-            // create buffer for read
-            uint8_t buff[128] = {0};
-
-            // get tcp stream
-            WiFiClient *stream = http.getStreamPtr();
-
-            // read all data from server
-            while (http.connected() && (len > 0 || len == -1))
-            {
-                // get available data size
-                size_t size = stream->available();
-
-                if (size)
-                {
-                    // read up to 128 byte
-                    int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
-
-                    // write it to SPIFFS
-                    f.write(buff, c);
-
-                    if (len > 0)
-                    {
-                        len -= c;
-                    }
-                }
-                delay(1);
-            }
-
-#if DEBUGAPIREQ
             Serial.println("[HTTP] connection closed or file end.");
-#endif
         }
         f.close();
     }
@@ -773,10 +757,10 @@ void drawAlbumart()
     {
         return;
     };
-    tft.fillRect(ALBUMART_X, ALBUMART_Y, 120, 120, TFT_BLACK); // Clear album art first
+    tft.fillRect(ALBUMART_X, ALBUMART_Y, ALBUMART_W, ALBUMART_H, TFT_BLACK); // Clear album art first
     Serial.println("Drawing album art.");
 
-    drawBmp("/albumart.bmp", ALBUMART_X, ALBUMART_Y);
+    TJpgDec.drawFsJpg(ALBUMART_X, ALBUMART_Y, "/albumart.jpg");
     updateAlbumart = false;
 }
 
@@ -1346,8 +1330,8 @@ String getSource(String sourceID)
     }
 
     currentSourceName = ampSourceStatus["name"].as<String>();
-    if (currentSourceName.length() >= SRC_NAME_LEN) {
-        currentSourceName = currentSourceName.substring(0,18) + "...";
+    if (currentSourceName.length() >= (SRC_NAME_LEN + 1)) {
+        currentSourceName = currentSourceName.substring(0,SRC_NAME_LEN) + "...";
     }
 
     String sourceInput = ampSourceStatus["input"];
@@ -1376,15 +1360,15 @@ void drawMetadata()
     String displaySong;
     String displayArtist;
 
-    if (currentSong.length() >= 19) {
-        displaySong = currentSong.substring(0,18) + "...";
+    if (currentSong.length() >= (TITLE_LEN + 1)) {
+        displaySong = currentSong.substring(0,TITLE_LEN) + "...";
     }
     else {
         displaySong = currentSong;
     }
     
-    if (currentArtist.length() >= 19) {
-        displayArtist = currentArtist.substring(0,18) + "...";
+    if (currentArtist.length() >= (ARTIST_LEN + 1)) {
+        displayArtist = currentArtist.substring(0,ARTIST_LEN) + "...";
     }
     else {
         displayArtist = currentArtist;
@@ -1394,10 +1378,10 @@ void drawMetadata()
 
     tft.setTextDatum(TC_DATUM);
     tft.setFreeFont(FSS12);
-    tft.fillRect(0, 157, 240, 90, TFT_BLACK); // Clear metadata area first
-    tft.drawString(displaySong, 120, 165, GFXFF); // Center Middle
-    tft.fillRect(20, 192, 200, 1, GREY);         // Seperator between song and artist
-    tft.drawString(displayArtist, 120, 200, GFXFF);
+    tft.fillRect(METATEXT_X, METATEXT_Y, METATEXT_W, METATEXT_H, TFT_BLACK); // Clear metadata area first
+    tft.drawString(displaySong, (TFT_WIDTH / 2), (METATEXT_Y + 5), GFXFF);   // Center Middle
+    tft.fillRect(20, (METATEXT_Y + 32), (METATEXT_W - 40), 1, GREY);         // Seperator between song and artist
+    tft.drawString(displayArtist, (TFT_WIDTH / 2), (METATEXT_Y + 40), GFXFF);
 }
 
 
@@ -1516,14 +1500,22 @@ void setup() {
     tft.setFreeFont(FSS18);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
+    tft.setSwapBytes(true); // We need to swap the colour bytes (endianess), otherwise JPG images won't look correct
+
+    // The jpeg image can be scaled by a factor of 1, 2, 4, or 8
+    TJpgDec.setJpgScale(1);
+
+    // The decoder must be given the exact name of the rendering function above
+    TJpgDec.setCallback(tft_output);
+
     // Call screen calibration
     //  This also handles formatting the filesystem if it hasn't been formatted yet
     touch_calibrate();
 
     // clear screen
     tft.fillScreen(TFT_BLACK);
-    tft.setTextDatum(TL_DATUM);
-    tft.setCursor(60, 40, 2);
+    tft.setTextDatum(TC_DATUM);
+    tft.setCursor((TFT_WIDTH / 3), 40, 2);
     tft.setFreeFont(FSS18);
 
     tft.print("Ampli");
@@ -1531,7 +1523,7 @@ void setup() {
     tft.println("Pi");
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setFreeFont(FSS12);
-    tft.setCursor(70, 100, 2);
+    tft.setCursor((TFT_WIDTH / 3), 100, 2);
     tft.println("Welcome");
     tft.println("");
 
@@ -1539,9 +1531,8 @@ void setup() {
     ETH.begin();
 
     Serial.print("Connecting to network");
-    tft.setTextDatum(TC_DATUM);
     tft.setFreeFont(FSS9);
-    tft.drawString("Connecting to network", 120, 300, GFXFF); // Center Middle
+    tft.drawString("Connecting to network", (TFT_WIDTH / 2), (TFT_HEIGHT - 20), GFXFF); // Center Middle
 
     //while (WiFi.status() != WL_CONNECTED)
     while (!eth_connected)
@@ -1553,9 +1544,9 @@ void setup() {
     Serial.print("Connected to network. Local IP: ");
     Serial.println(ETH.localIP());
     
-    tft.fillRect(0, 280, 240, 40, TFT_BLACK); // Clear area first
-    tft.drawString("Connected. IP address: ", 120, 280, GFXFF); // Center Middle
-    tft.drawString(String(ETH.localIP()[0])+"."+String(ETH.localIP()[1])+"."+String(ETH.localIP()[2])+"."+String(ETH.localIP()[3]), 120, 300, GFXFF); // Center Middle
+    tft.fillRect(0, (TFT_HEIGHT - 40), TFT_WIDTH, 40, TFT_BLACK); // Clear area first
+    tft.drawString("Connected. IP address: ", (TFT_WIDTH / 2), (TFT_HEIGHT - 40), GFXFF); // Center Middle
+    tft.drawString(String(ETH.localIP()[0])+"."+String(ETH.localIP()[1])+"."+String(ETH.localIP()[2])+"."+String(ETH.localIP()[3]), (TFT_WIDTH / 2), (TFT_HEIGHT - 20), GFXFF); // Center Middle
     delay(500);
 
     loadFileFSConfigFile();
