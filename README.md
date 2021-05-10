@@ -4,35 +4,32 @@ A touchscreen keypad designed to control AmpliPi, using the Olimex ESP32-PoE boa
 
 For the WiFi version, go to this repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad
 
-Currently a work in progress.
+Currently a work in progress, nearing initial release.
 
 Built using VS Code with Platform.IO.
 
 #### Currently supported hardware
 - Olimex ESP32-PoE board
-- ILI9341 compatible 320x240 TFT touchscreen
+- ILI9341 or ILI9488 compatible TFT touchscreen
 
 #### Basic setup instructions
-1. Wire the TFT touchscreen to the ESP32-PoE using the UEXT connector (additional details coming soon)
+1. Wire the TFT touchscreen to the ESP32-PoE using the UEXT connector (PCB details coming soon). Edit platform.ini as needed.
 
 ###### Pin selection for the Olimex ESP32-PoE board's UEXT connector
-- TFT_MISO 16
-- TFT_MOSI 13
-- TFT_SCLK 14
-- TFT_CS   15
-- TFT_DC    2
-- TFT_RST   5
-- TOUCH_CS  4
-
-![alt text](https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad/blob/main/docs/ESP32-to-TFT-pin-assignment.jpg?raw=true)
+- TFT_CS=15
+- TFT_RST=5
+- TFT_DC=2
+- TFT_MOSI=13
+- TFT_SCLK=14
+- TFT_MISO=16
+- DTOUCH_CS=4
 
 2. Clone this Github project
 3. Upload Filesystem Image to ESP32-PoE (this uploads the files in the data folder to the ESP32's file system)
-4. Upload to ESP32-PoE
+4. Compile and upload to ESP32-PoE
+5. Replace app.py from the amplipi folder on the AmpliPi server. This patch includes the 'get_stream_image' function to provide album art to the controller. Requires 'pillow' python3 library (pip3 install pillow).
 
-Note: Some screens can't be reliably powered via the board's 3.3v pins and instead should be powered from 5v or an external power source. On the ESP32-PoE, this requires soldering a pin to the 5v pin on EXT1.
-
-Also, WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi is needed, use the WiFi repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad 
+Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi is needed, use the WiFi repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad 
 
 #### To do items
 - [ ] Add support for stream commands: Play/Pause, Next, Stop, Like
