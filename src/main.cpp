@@ -827,8 +827,8 @@ void drawSourceSelection()
     int max = currentSourceOffset + 6;
     for (JsonObject value : apiStatus["streams"].as<JsonArray>()) {
         JsonObject thisStream = value;
-        streamName = thisStream["name"].as<char*>();
-        Serial.print(thisStream["id"].as<char*>());
+        streamName = thisStream["name"].as<String>();
+        Serial.print(thisStream["id"].as<String>());
         Serial.print(" - ");
         Serial.print(streamName);
         
