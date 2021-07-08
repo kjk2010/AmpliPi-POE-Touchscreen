@@ -25,6 +25,7 @@ static bool eth_connected = false;
 /* Debug options */
 #define DEBUGAPIREQ false
 
+#define DEBUG_WEBSERVER false // are you running the debug server on port 5000?
 
 /**************************************/
 /* Configure screen colors and layout */
@@ -322,6 +323,9 @@ bool loadFileFSConfigFile()
         else {
             // Not an IP, look up via MDNS:
             amplipiHostIP = findMDNS(String(amplipiHost));
+#if DEBUG_WEBSERVER
+            amplipiHostIP += ":5000";
+#endif
             //Serial.print("amplipiHostIP (mDNS): ");
             //Serial.println(amplipiHostIP);
         }
