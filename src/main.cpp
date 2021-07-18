@@ -25,6 +25,7 @@ static bool eth_connected = false;
 /* Debug options */
 #define DEBUGAPIREQ false
 
+#define DEBUG_WEBSERVER false // are you running the debug server on port 5000?
 
 /**************************************/
 /* Configure screen colors and layout */
@@ -322,6 +323,9 @@ bool loadFileFSConfigFile()
         else {
             // Not an IP, look up via MDNS:
             amplipiHostIP = findMDNS(String(amplipiHost));
+#if DEBUG_WEBSERVER
+            amplipiHostIP += ":5000";
+#endif
             //Serial.print("amplipiHostIP (mDNS): ");
             //Serial.println(amplipiHostIP);
         }
@@ -691,11 +695,11 @@ bool patchAPI(String request, String payload)
 
 
 // Download album art or logo from AmpliPi API. Requires code update to AmpliPi API
-bool downloadAlbumart(String streamID)
+bool downloadAlbumart(String sourceID)
 {
     HTTPClient http;
     bool outcome = true;
-    String url = "http://" + amplipiHostIP + "/api/streams/image/" + streamID;// + '?width=' + String(ALBUMART_W);
+    String url = "http://" + amplipiHostIP + "/api/sources/" + sourceID + "/image/" + String(ALBUMART_W);
     String filename = "/albumart.jpg";
 
     // configure server and url
@@ -827,8 +831,8 @@ void drawSourceSelection()
     int max = currentSourceOffset + 6;
     for (JsonObject value : apiStatus["streams"].as<JsonArray>()) {
         JsonObject thisStream = value;
-        streamName = thisStream["name"].as<char*>();
-        Serial.print(thisStream["id"].as<char*>());
+        streamName = thisStream["name"].as<String>();
+        Serial.print(thisStream["id"].as<String>());
         Serial.print(" - ");
         Serial.print(streamName);
         
@@ -1308,12 +1312,49 @@ void getZone()
 }
 
 
-String getSource(String sourceID)
+// Re-draw metadata, for example after source select is canceled
+void drawMetadata()
 {
+    String displaySong;
+    String displayArtist;
+
+    if (currentSong.length() >= (TITLE_LEN + 1)) {
+        displaySong = currentSong.substring(0,TITLE_LEN) + "...";
+    }
+    else {
+        displaySong = currentSong;
+    }
+
+    if (currentArtist.length() >= (ARTIST_LEN + 1)) {
+        displayArtist = currentArtist.substring(0,ARTIST_LEN) + "...";
+    }
+    else {
+        displayArtist = currentArtist;
+    }
+
+    Serial.println("Refreshing metadata on screen");
+
+    tft.setTextDatum(TC_DATUM);
+    tft.setFreeFont(FSS12);
+    tft.fillRect(METATEXT_X, METATEXT_Y, METATEXT_W, METATEXT_H, TFT_BLACK); // Clear metadata area first
+    tft.drawString(displaySong, (TFT_WIDTH / 2), (METATEXT_Y + 5), GFXFF);   // Center Middle
+    tft.fillRect(20, (METATEXT_Y + 32), (METATEXT_W - 40), 1, GREY);         // Seperator between song and artist
+    tft.drawString(displayArtist, (TFT_WIDTH / 2), (METATEXT_Y + 40), GFXFF);
+}
+
+void getSource(String sourceID)
+{
+    String streamArtist = "";
+    String streamAlbum = "";
+    String streamSong = "";
+    String streamStatus = "";
+    String albumArt = "";
+    String streamName = "";
+
     String json = requestAPI("sources/" + String(sourceID));
 
     // DynamicJsonDocument<N> allocates memory on the heap
-    DynamicJsonDocument ampSourceStatus(1000);
+    DynamicJsonDocument ampSourceStatus(2000);
 
     // Deserialize the JSON document
     DeserializationError error = deserializeJson(ampSourceStatus, json);
@@ -1325,8 +1366,6 @@ String getSource(String sourceID)
         Serial.println(error.f_str());
 
         String errormsg = "Error parsing results from Amplipi API";
-        //tft.println(errormsg);
-        return errormsg;
     }
 
     currentSourceName = ampSourceStatus["name"].as<String>();
@@ -1350,108 +1389,36 @@ String getSource(String sourceID)
 
     Serial.print("streamID: ");
     Serial.println(streamID);
-    return streamID;
-}
 
-
-// Re-draw metadata, for example after source select is canceled
-void drawMetadata()
-{
-    String displaySong;
-    String displayArtist;
-
-    if (currentSong.length() >= (TITLE_LEN + 1)) {
-        displaySong = currentSong.substring(0,TITLE_LEN) + "...";
-    }
-    else {
-        displaySong = currentSong;
-    }
-    
-    if (currentArtist.length() >= (ARTIST_LEN + 1)) {
-        displayArtist = currentArtist.substring(0,ARTIST_LEN) + "...";
-    }
-    else {
-        displayArtist = currentArtist;
-    }
-
-    Serial.println("Refreshing metadata on screen");
-
-    tft.setTextDatum(TC_DATUM);
-    tft.setFreeFont(FSS12);
-    tft.fillRect(METATEXT_X, METATEXT_Y, METATEXT_W, METATEXT_H, TFT_BLACK); // Clear metadata area first
-    tft.drawString(displaySong, (TFT_WIDTH / 2), (METATEXT_Y + 5), GFXFF);   // Center Middle
-    tft.fillRect(20, (METATEXT_Y + 32), (METATEXT_W - 40), 1, GREY);         // Seperator between song and artist
-    tft.drawString(displayArtist, (TFT_WIDTH / 2), (METATEXT_Y + 40), GFXFF);
-}
-
-
-void getStream(String sourceID)
-{
-    String streamID = getSource(sourceID);
-
-    String streamArtist = "";
-    String streamAlbum = "";
-    String streamSong = "";
-    String streamStatus = "";
-    String albumArt = "";
-    String streamName = "";
-
-    if (streamID == "0")
+    streamArtist = ampSourceStatus["info"]["artist"].as<String>();
+    if (streamArtist == "null")
     {
-        // Local Input
-        streamSong = "Local Input";
-        streamName = currentSourceName;
-        albumArt = "local";
+        streamArtist = "";
     }
-    else
+    streamAlbum = ampSourceStatus["info"]["album"].as<String>();
+    if (streamAlbum == "null")
     {
-        // Streaming Input
-        String json = requestAPI("streams/" + streamID);
-
-        // DynamicJsonDocument<N> allocates memory on the heap
-        DynamicJsonDocument ampSourceStatus(2000);
-
-        // Deserialize the JSON document
-        DeserializationError error = deserializeJson(ampSourceStatus, json);
-
-        // Test if parsing succeeds.
-        if (error)
-        {
-            Serial.print(F("deserializeJson() failed: "));
-            Serial.println(error.f_str());
-            return;
-        }
-
-        streamArtist = ampSourceStatus["info"]["artist"].as<String>();
-        if (streamArtist == "null")
-        {
-            streamArtist = "";
-        }
-        streamAlbum = ampSourceStatus["info"]["album"].as<String>();
-        if (streamAlbum == "null")
-        {
-            streamAlbum = "";
-        }
-        streamSong = ampSourceStatus["info"]["song"].as<String>();
-        if (streamSong == "null")
-        {
-            streamSong = "";
-        }
-        streamStatus = ampSourceStatus["status"].as<String>();
-        if (streamStatus == "null")
-        {
-            streamStatus = "";
-        }
-        streamName = ampSourceStatus["name"].as<String>();
-        if (streamName == "null")
-        {
-            streamName = "";
-        }
-        albumArt = ampSourceStatus["info"]["img_url"].as<String>();
-        if (albumArt == "null")
-        {
-            albumArt = "";
-        }
+        streamAlbum = "";
+    }
+    streamSong = ampSourceStatus["info"]["track"].as<String>();
+    if (streamSong == "null")
+    {
+        streamSong = "";
+    }
+    streamStatus = ampSourceStatus["status"].as<String>();
+    if (streamStatus == "null")
+    {
+        streamStatus = "";
+    }
+    streamName = ampSourceStatus["name"].as<String>();
+    if (streamName == "null")
+    {
+        streamName = "";
+    }
+    albumArt = ampSourceStatus["info"]["img_url"].as<String>();
+    if (albumArt == "null")
+    {
+        albumArt = "";
     }
 
     // Update source name if it has changed
@@ -1475,9 +1442,10 @@ void getStream(String sourceID)
     // Download and refresh album art if it has changed
     if (albumArt != currentAlbumArt)
     {
+        Serial.println("Album art changed from " + currentAlbumArt + " to " + albumArt);
         currentAlbumArt = albumArt;
         updateAlbumart = true;
-        downloadAlbumart(streamID);
+        downloadAlbumart(sourceID);
         drawAlbumart();
     }
 
@@ -1897,7 +1865,7 @@ void loop() {
         if (metadata_refresh) {
             Serial.println("Refreshing metadata");
             getZone();
-            getStream(String(amplipiSource));
+            getSource(String(amplipiSource));
         }
         lastRefreshTime += REFRESH_INTERVAL;
     }
