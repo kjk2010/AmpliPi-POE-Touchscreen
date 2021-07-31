@@ -39,6 +39,7 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 - [ ] Put metadata into sprites and scroll long titles
 - [ ] Split display functions from update data functions. Display functions should be drawing everything from memory, and update functions should be updating the data and triggering a draw if data has changed.
 - [ ] Show album art for all available stream sources (will require patching AmpliPi)
+- [ ] Backlight control with configuable timeout options
 - [x] Switch to JPEG images instead of BMP in order to speed up downloading and display of album art
 - [x] Add support full multiple screen sizes
 - [x] Add POE and Ethernet capabilities, utilizing the Olimex ESP32-POE board

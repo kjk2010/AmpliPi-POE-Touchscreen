@@ -23,9 +23,9 @@
 static bool eth_connected = false;
 
 /* Debug options */
-#define DEBUGAPIREQ false
+#define DEBUGAPIREQ true // Debug API requests to Serial
 
-#define DEBUG_WEBSERVER false // are you running the debug server on port 5000?
+#define DEBUG_WEBSERVER true // are you running the AmpliPi debug server on port 5000?
 
 /**************************************/
 /* Configure screen colors and layout */
@@ -76,6 +76,27 @@ static bool eth_connected = false;
 #define ALBUMART_W (TFT_WIDTH - 120)
 #define ALBUMART_H ALBUMART_W
 
+// Source Control Buttons
+#define PLAYPAUSEBUTTON_X (TFT_WIDTH - 36)
+#define PLAYPAUSEBUTTON_Y 64
+#define PLAYPAUSEBUTTON_W 36
+#define PLAYPAUSEBUTTON_H 36
+
+#define SKIPBUTTON_X (TFT_WIDTH - 36)
+#define SKIPBUTTON_Y 118
+#define SKIPBUTTON_W 36
+#define SKIPBUTTON_H 36
+
+#define LIKEBUTTON_X 0
+#define LIKEBUTTON_Y 64
+#define LIKEBUTTON_W 36
+#define LIKEBUTTON_H 36
+
+#define DISLIKEBUTTON_X 0
+#define DISLIKEBUTTON_Y 118
+#define DISLIKEBUTTON_W 36
+#define DISLIKEBUTTON_H 36
+
 // Metadata text location
 #define METATEXT_X 0
 #define METATEXT_Y (ALBUMART_Y + ALBUMART_H + 10) // Start Metadata text 10px below the album art
@@ -84,9 +105,9 @@ static bool eth_connected = false;
 
 // Warning zone
 #define WARNZONE_X 0
-#define WARNZONE_Y (TFT_HEIGHT - 85) // Just above volume bar(s)
+#define WARNZONE_Y (TFT_HEIGHT - 87) // Just above volume bar(s)
 #define WARNZONE_W TFT_WIDTH
-#define WARNZONE_H 15
+#define WARNZONE_H 13
 
 // Mute button location
 #define MUTE_X 0
@@ -111,14 +132,14 @@ static bool eth_connected = false;
 
 #if TFT_WIDTH <= 240
     // Maximum length of the source name
-    #define SRC_NAME_LEN 18
+    #define SRC_NAME_LEN 16
 
     // Max length for title and artist metadata
     #define TITLE_LEN 18
     #define ARTIST_LEN 18
 #else
     // Maximum length of the source name
-    #define SRC_NAME_LEN 25
+    #define SRC_NAME_LEN 23
 
     // Max length for title and artist metadata
     #define TITLE_LEN 25
@@ -151,14 +172,17 @@ char configFileName[] = "/config.json";
 /*************************************/
 /* Configure globally used variables */
 /*************************************/
-String activeScreen = "metadata"; // Available screens: metadata, source, setting
+String activeScreen = "metadata"; // Available screens: metadata, source, setting, off
 String amplipiHostIP = "";
 String sourceName = "";
 String currentArtist = "";
 String currentSong = "";
 String currentStatus = "";
 String currentAlbumArt = "";
-String currentSourceName = "";
+String currentStreamID = "";
+String currentStreamName = "";
+String currentStreamType = "";
+String sourceInput;
 bool inWarning = false;
 int newAmplipiSource = 0;
 int newAmplipiZone1 = 0;
@@ -417,7 +441,7 @@ void touch_calibrate()
     }
 }
 
-
+// Used for wired ethernet, even though it's called WiFiEvent
 void WiFiEvent(WiFiEvent_t event)
 {
     switch (event) {
@@ -466,15 +490,18 @@ void clearMainArea()
 // Show a warning near bottom of screen. Primarily used if we can't access AmpliPi API
 void drawWarning(String message)
 {
-    tft.fillRect(WARNZONE_X, WARNZONE_Y, WARNZONE_W, WARNZONE_H, TFT_BLACK); // Clear warning area
-    Serial.print("Warning: ");
-    Serial.println(message);
-    tft.setTextColor(TFT_RED, TFT_BLACK);
-    tft.setFreeFont(FSS9);
-    tft.drawString(message, (WARNZONE_X + 5), WARNZONE_Y);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setFreeFont(FSS12);
-    inWarning = true;
+    if (!inWarning) {
+        tft.fillRect(WARNZONE_X, WARNZONE_Y, WARNZONE_W, WARNZONE_H, TFT_BLACK); // Clear warning area
+        Serial.print("Warning: ");
+        Serial.println(message);
+        tft.setTextColor(TFT_RED, TFT_BLACK);
+        tft.setFreeFont(FSS9);
+        tft.setTextDatum(TL_DATUM);
+        tft.drawString(message, (WARNZONE_X + 5), WARNZONE_Y);
+        tft.setTextColor(TFT_WHITE, TFT_BLACK);
+        tft.setFreeFont(FSS12);
+        inWarning = true;
+    }
 }
 
 void clearWarning()
@@ -694,6 +721,67 @@ bool patchAPI(String request, String payload)
 }
 
 
+// Send POST to API
+bool postAPI(String request, String payload)
+{
+    HTTPClient http;
+
+    bool result = false;
+
+    String url = "http://" + amplipiHostIP + "/api/" + request;
+
+#if DEBUGAPIREQ
+    Serial.print("[HTTP] begin...\n");
+    Serial.print("[HTTP] POST...\n");
+#endif
+
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
+    http.begin(url); //HTTP
+    http.addHeader("Accept", "application/json");
+    http.addHeader("Content-Type", "application/json");
+
+    // start connection and send HTTP header
+    int httpCode = http.POST(payload);
+
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+#if DEBUGAPIREQ
+        // HTTP header has been send and Server response header has been handled
+        Serial.printf("[HTTP] POST... code: %d\n", httpCode);
+#endif
+
+        // file found at server
+        if (httpCode == HTTP_CODE_OK)
+        {
+            result = true;
+
+            // Clear the warning since we jsut received a successful API request
+            if (inWarning)
+            {
+                clearWarning();
+            }
+        }
+        String resultPayload = http.getString();
+
+#if DEBUGAPIREQ
+        Serial.println("[HTTP] POST result:");
+        Serial.println(resultPayload);
+#endif
+    }
+    else
+    {
+        Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        drawWarning("Unable to access AmpliPi");
+    }
+
+    http.end();
+
+    return result;
+}
+
+
 // Download album art or logo from AmpliPi API. Requires code update to AmpliPi API
 bool downloadAlbumart(String sourceID)
 {
@@ -781,7 +869,8 @@ void drawSource()
     tft.setFreeFont(FSS9);
     tft.setTextDatum(TL_DATUM);
     tft.fillRect(SRCBAR_X, SRCBAR_Y, SRCBAR_W, SRCBAR_H, TFT_BLACK); // Clear source bar first
-    tft.drawString(sourceName, 2, 5, GFXFF); // Top Left
+    tft.drawString(currentStreamName, 38, 5, GFXFF); // Top Left
+    drawBmp("/power.bmp", 0, 0);
     drawBmp("/source.bmp", (SRCBAR_W - 36), SRCBAR_Y);
 
     updateSource = false;
@@ -800,7 +889,7 @@ void drawSourceSelection()
     Serial.println("Opening source selection screen.");
 
     // Download source options
-    String status_json = requestAPI(""); // Requesting /api/
+    String status_json = requestAPI("streams"); // Requesting /api/streams
     
     // DynamicJsonDocument<N> allocates memory on the heap
     DynamicJsonDocument apiStatus(6144);
@@ -823,7 +912,7 @@ void drawSourceSelection()
     tft.setTextColor(TFT_WHITE, TFT_NAVY);
     tft.setFreeFont(FSS12);
 
-    Serial.print("currentSourceOffice: ");
+    Serial.print("currentSourceOffset: ");
     Serial.println(currentSourceOffset);
     Serial.println("Streams:");
     int bi = 0; // Base iterator within 'print 6 items' loop (0-6)
@@ -925,6 +1014,23 @@ void selectSource(int y)
 }
 
 
+void powerOffScreen() {
+    // Stop metadata refresh
+    metadata_refresh = false;
+
+    // Clear screen
+    tft.fillRect(0, 0, TFT_WIDTH, TFT_HEIGHT, TFT_BLACK);
+
+    // Turn off backlight
+    digitalWrite(TFT_BL, LOW);
+
+}
+
+void powerOnScreen() {
+    // Turn on backlight
+    digitalWrite(TFT_BL, HIGH);
+}
+
 void drawSettings()
 {
     // Available settings:
@@ -1006,6 +1112,49 @@ void drawSettings()
     tft.setFreeFont(FSS12);
 }
 
+
+void drawCommandButtons()
+{
+    // Currently, only Pandora streams support these buttons
+    if (currentStreamType == "pandora")
+    {
+        //if (commandLike) {
+        //    drawBmp("/heart_on.bmp", LIKEBUTTON_X, LIKEBUTTON_Y);
+        //}
+        //else {
+            drawBmp("/heart.bmp", LIKEBUTTON_X, LIKEBUTTON_Y);
+        //}
+        //if (commandDislike) {
+        //    drawBmp("/thumbdown_on.bmp", DISLIKEBUTTON_X, DISLIKEBUTTON_Y);
+        //}
+        //else {
+            drawBmp("/thumbdown.bmp", DISLIKEBUTTON_X, DISLIKEBUTTON_Y);
+        //}
+
+        //if (commandStatus == 'play') {
+            drawBmp("/pause.bmp", PLAYPAUSEBUTTON_X, PLAYPAUSEBUTTON_Y);
+        //}
+        //else {
+        //    drawBmp("/play.bmp", PLAYPAUSEBUTTON_X, PLAYPAUSEBUTTON_Y);
+        //}
+
+        drawBmp("/skip.bmp", SKIPBUTTON_X, SKIPBUTTON_Y);
+    }
+    else {
+        // Clear buttons
+        tft.fillRect(LIKEBUTTON_X, LIKEBUTTON_Y, 36, 36, TFT_BLACK);
+        tft.fillRect(DISLIKEBUTTON_X, DISLIKEBUTTON_Y, 36, 36, TFT_BLACK);
+        tft.fillRect(PLAYPAUSEBUTTON_X, PLAYPAUSEBUTTON_X, 36, 36, TFT_BLACK);
+        tft.fillRect(SKIPBUTTON_X, SKIPBUTTON_X, 36, 36, TFT_BLACK);
+    }
+}
+
+void sendCommand(String command) {
+    String payload = "{\"vol\": " + String(command) + "}";
+    bool result = patchAPI("streams/" + String(amplipiZone1), payload);
+    Serial.print("sendCommand result: ");
+    Serial.println(result);
+}
 
 void sendVolUpdate(int zone)
 {
@@ -1340,6 +1489,9 @@ void drawMetadata()
     tft.drawString(displaySong, (TFT_WIDTH / 2), (METATEXT_Y + 5), GFXFF);   // Center Middle
     tft.fillRect(20, (METATEXT_Y + 32), (METATEXT_W - 40), 1, GREY);         // Seperator between song and artist
     tft.drawString(displayArtist, (TFT_WIDTH / 2), (METATEXT_Y + 40), GFXFF);
+
+    // Draw control buttons for streams that support it
+    drawCommandButtons();
 }
 
 void getSource(String sourceID)
@@ -1349,6 +1501,7 @@ void getSource(String sourceID)
     String streamSong = "";
     String streamStatus = "";
     String albumArt = "";
+    String streamID = "";
     String streamName = "";
 
     String json = requestAPI("sources/" + String(sourceID));
@@ -1365,18 +1518,12 @@ void getSource(String sourceID)
         Serial.print(F("deserializeJson() failed: "));
         Serial.println(error.f_str());
 
-        String errormsg = "Error parsing results from Amplipi API";
+        //String errormsg = "Error parsing results from Amplipi API";
     }
 
-    currentSourceName = ampSourceStatus["name"].as<String>();
-    if (currentSourceName.length() >= (SRC_NAME_LEN + 1)) {
-        currentSourceName = currentSourceName.substring(0,SRC_NAME_LEN) + "...";
-    }
-
-    String sourceInput = ampSourceStatus["input"];
+    sourceInput = ampSourceStatus["input"].as<String>();
     Serial.print("sourceInput: ");
     Serial.println(sourceInput);
-    String streamID = "";
 
     if (sourceInput == "local")
     {
@@ -1390,6 +1537,47 @@ void getSource(String sourceID)
     Serial.print("streamID: ");
     Serial.println(streamID);
 
+    // Update stream name if it has changed
+    if (currentStreamID != streamID && streamID != "0")
+    {
+        currentStreamID = streamID;
+
+        String streamJson = requestAPI("streams/" + String(streamID));
+
+        // DynamicJsonDocument<N> allocates memory on the heap
+        DynamicJsonDocument ampStreamStatus(2000);
+
+        // Deserialize the JSON document
+        DeserializationError streamError = deserializeJson(ampStreamStatus, streamJson);
+
+        // Test if parsing succeeds.
+        if (streamError)
+        {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(streamError.f_str());
+
+            //String errormsg = "Error parsing results from Amplipi API";
+        }
+
+        currentStreamName = ampStreamStatus["name"].as<String>();
+        if (currentStreamName.length() >= (SRC_NAME_LEN + 1)) {
+            currentStreamName = currentStreamName.substring(0,SRC_NAME_LEN) + "...";
+        }
+
+        currentStreamType = ampStreamStatus["type"].as<String>();
+
+        updateSource = true;
+        drawSource();
+    }
+    else if (streamID == "0") {
+        currentStreamName = "Local - RCA";
+        currentStreamType = "local";
+
+        updateSource = true;
+        drawSource();
+    }
+
+    // Get stream metadata
     streamArtist = ampSourceStatus["info"]["artist"].as<String>();
     if (streamArtist == "null")
     {
@@ -1410,23 +1598,10 @@ void getSource(String sourceID)
     {
         streamStatus = "";
     }
-    streamName = ampSourceStatus["name"].as<String>();
-    if (streamName == "null")
-    {
-        streamName = "";
-    }
     albumArt = ampSourceStatus["info"]["img_url"].as<String>();
     if (albumArt == "null")
     {
         albumArt = "";
-    }
-
-    // Update source name if it has changed
-    if (streamName != sourceName)
-    {
-        sourceName = streamName;
-        updateSource = true;
-        drawSource();
     }
 
     // Only refresh screen if we have new data
@@ -1483,7 +1658,7 @@ void setup() {
     // clear screen
     tft.fillScreen(TFT_BLACK);
     tft.setTextDatum(TC_DATUM);
-    tft.setCursor((TFT_WIDTH / 3), 40, 2);
+    tft.setCursor((TFT_WIDTH / 3) - 15, 40, 2); // center
     tft.setFreeFont(FSS18);
 
     tft.print("Ampli");
@@ -1491,7 +1666,7 @@ void setup() {
     tft.println("Pi");
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setFreeFont(FSS12);
-    tft.setCursor((TFT_WIDTH / 3), 100, 2);
+    tft.setCursor((TFT_WIDTH / 3) - 5, 100, 2); // center
     tft.println("Welcome");
     tft.println("");
 
@@ -1547,19 +1722,56 @@ void loop() {
 
         // Touch screen control
 
-        // Main Metadata screen
-        if (activeScreen == "metadata")
+        // Turn screen back on if off
+        if (activeScreen == "off")
         {
+            Serial.println("Turning screen back on");
+
+            // Reload main metadata screen
+            activeScreen = "metadata";
+            metadata_refresh = true;
+            updateMute1 = true;
+            updateMute2 = true;
+            updateAlbumart = true;
+            updateVol1 = true;
+            updateVol2 = true;
+            currentSourceOffset = 0;
+
+            drawSource();
+            if (amplipiZone2Enabled) {
+                drawMuteBtn(1);
+                drawMuteBtn(2);
+            }
+            else {
+                drawMuteBtn(1);
+            }
+            drawSource();
+            drawMetadata();
+            drawAlbumart();
+
+            powerOnScreen();
+
+            delay(200); // debounce
+        }
+        else if (activeScreen == "metadata")
+        {
+            // Main Metadata screen
             Serial.println("Current screen: metadata");
 
-            // Source Select
-            if ((x > SRCBUTTON_X) && (x < (SRCBUTTON_X + SRCBUTTON_W)))
+            // Source Select (location: top right)
+            if ((x > SRCBUTTON_X) && (x < (SRCBUTTON_X + SRCBUTTON_W)) && (y > SRCBUTTON_Y) && (y <= (SRCBUTTON_Y + SRCBUTTON_H)))
             {
-                if ((y > SRCBUTTON_Y) && (y <= (SRCBUTTON_Y + SRCBUTTON_H)))
-                {
-                    activeScreen = "source";
-                    drawSourceSelection();
-                }
+                activeScreen = "source";
+                drawSourceSelection();
+                Serial.print("Source select button hit.");
+            }
+            
+            // Power screen off (location: top left)
+            if ((x >= SRCBAR_X) && (x <= (SRCBAR_X + 36)) && (y >= SRCBAR_Y) && (y <= (SRCBAR_Y + 36)))
+            {
+                activeScreen = "off";
+                powerOffScreen();
+                Serial.print("Power off screen button hit.");
             }
 
             // Mute button
@@ -1574,6 +1786,7 @@ void loop() {
                     updateVol1 = true;
                     drawMuteBtn(1);
                     sendMuteUpdate(1);
+                    Serial.print("Mute button hit.");
                 }
                 else if ((y > MUTE2_Y) && (y <= (MUTE2_Y + MUTE_H)))
                 {
@@ -1595,8 +1808,8 @@ void loop() {
                         drawMuteBtn(1);
                         sendMuteUpdate(1);
                     }
+                    Serial.print("Mute button hit.");
                 }
-                Serial.print("Mute button hit.");
             }
 
             // Volume control
@@ -1609,6 +1822,7 @@ void loop() {
                     volPercent1 = (x - 35) / 1.5;
                     drawVolume(x, 1);
                     sendVolUpdate(1);
+                    Serial.print("Volume control hit.");
                 }
                 else if ((y > VOLBARZONE2_Y) && (y <= (VOLBARZONE2_Y + VOLBARZONE_H)))
                 {
@@ -1626,8 +1840,8 @@ void loop() {
                         drawVolume(x, 1);
                         sendVolUpdate(1);
                     }
+                    Serial.print("Volume control hit.");
                 }
-                Serial.print("Volume control hit.");
             }
             
             delay(200); // Debounce
