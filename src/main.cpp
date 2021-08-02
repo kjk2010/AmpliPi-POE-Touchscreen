@@ -22,6 +22,8 @@
 
 static bool eth_connected = false;
 
+#define VERSION "0.9.1 (beta)"
+
 /* Debug options */
 #define DEBUGAPIREQ true // Debug API requests to Serial
 
@@ -48,11 +50,16 @@ static bool eth_connected = false;
 #define SRCBUTTON_W 40 // Oversize the button for easy selection
 #define SRCBUTTON_H 40 // Oversize the button for easy selection
 
-// Settings Screen Buttons
+// Settings and About Screen Buttons
 #define LEFTBUTTON_X 0
 #define LEFTBUTTON_Y (TFT_HEIGHT - 38)
 #define LEFTBUTTON_W 100
 #define LEFTBUTTON_H 38
+
+#define CENTERBUTTON_X 101
+#define CENTERBUTTON_Y (TFT_HEIGHT - 38)
+#define CENTERBUTTON_W 38
+#define CENTERBUTTON_H 38
 
 #define RIGHTBUTTON_X 140
 #define RIGHTBUTTON_Y (TFT_HEIGHT - 38)
@@ -107,7 +114,7 @@ static bool eth_connected = false;
 #define WARNZONE_X 0
 #define WARNZONE_Y (TFT_HEIGHT - 87) // Just above volume bar(s)
 #define WARNZONE_W TFT_WIDTH
-#define WARNZONE_H 13
+#define WARNZONE_H 14
 
 // Mute button location
 #define MUTE_X 0
@@ -172,7 +179,7 @@ char configFileName[] = "/config.json";
 /*************************************/
 /* Configure globally used variables */
 /*************************************/
-String activeScreen = "metadata"; // Available screens: metadata, source, setting, off
+String activeScreen = "metadata"; // Available screens: metadata, source, setting, about, off
 String amplipiHostIP = "";
 String sourceName = "";
 String currentArtist = "";
@@ -183,6 +190,7 @@ String currentStreamID = "";
 String currentStreamName = "";
 String currentStreamType = "";
 String sourceInput;
+String hostname = "APCT"; // ETH MAC appended to this value
 bool inWarning = false;
 int newAmplipiSource = 0;
 int newAmplipiZone1 = 0;
@@ -203,6 +211,11 @@ bool updateVol1 = true;
 bool updateVol2 = true;
 bool metadata_refresh = true;
 
+// Command statuses
+bool cmdPlaying = true;
+bool cmdLike = false;
+bool cmdDislike = false;
+
 
 /***********************/
 /* Configure functions */
@@ -217,15 +230,13 @@ String findMDNS(String mDnsHost) {
     Serial.println("Finding the mDNS details...");
     Serial.println(mDnsHost);
 
-    //uint64_t chipid = ESP.getEfuseMac();
-    //char chipid_char[16];
-    //sprintf(chipid_char, "%16X", chipid);
-
     //if (!MDNS.begin(chipid_char)) {
-    if (!MDNS.begin("esp32-poe-amplipi")) {
-        Serial.println("Error setting up MDNS responder!");
+    if (!MDNS.begin(hostname.c_str())) {
+        Serial.println("Error setting up MDNS responder.");
     } else {
-        Serial.println("Finished initializing the MDNS client...");
+        Serial.println("Finished initializing the MDNS client.");
+        Serial.print("Hostname: ");
+        Serial.println(hostname);
     }
 
     Serial.println("mDNS responder started");
@@ -444,11 +455,16 @@ void touch_calibrate()
 // Used for wired ethernet, even though it's called WiFiEvent
 void WiFiEvent(WiFiEvent_t event)
 {
+    String MAC;
     switch (event) {
         case SYSTEM_EVENT_ETH_START:
             Serial.println("ETH Started");
-            //set eth hostname here
-            ETH.setHostname("esp32-ethernet");
+
+            MAC = ETH.macAddress();
+            MAC.replace(":","");
+            hostname += "-" + MAC;
+
+            ETH.setHostname(hostname.c_str());
             break;
         case SYSTEM_EVENT_ETH_CONNECTED:
             Serial.println("ETH Connected");
@@ -906,7 +922,7 @@ void drawSourceSelection()
 
     // Clear screen
     clearMainArea();
-    
+
     // Draw size selecton boxes
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_NAVY);
@@ -1044,7 +1060,7 @@ void drawSettings()
 
     // Clear screen
     clearMainArea();
-    
+
     // Show settings:
     // Zone 1
     tft.setFreeFont(FSS12);
@@ -1096,13 +1112,17 @@ void drawSettings()
     tft.fillRoundRect(0, 230, 240, 36, 6, TFT_DARKGREEN);
     tft.drawString("Re-calibrate Touchscreen", 10, 240);
 
-    // Save and Cancel buttons
+    // Save, About, and Cancel buttons
     tft.setTextDatum(TC_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
 
     tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
     tft.drawString("Save", (MAINZONE_X + 50), 292);
 
+    tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    tft.drawString("?", 119, 292); // About
+
+    tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
     tft.fillRoundRect(RIGHTBUTTON_X, RIGHTBUTTON_Y, RIGHTBUTTON_W, RIGHTBUTTON_H, 6, TFT_DARKGREY);
     tft.drawString("Cancel", (MAINZONE_X + 140 + 50), 292);
 
@@ -1113,30 +1133,109 @@ void drawSettings()
 }
 
 
+void drawAbout()
+{
+    // TODO: Pull latest version from a remote source (AmpliPi or GitHub?)
+    String latestVersion = "0.9.1 (beta)";
+
+    // Stop metadata refresh
+    metadata_refresh = false;
+
+    // Clear screen
+    clearMainArea();
+
+    // Show information:
+    tft.setFreeFont(FSS9);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawString("IP: " + String(ETH.localIP()[0])+"."+String(ETH.localIP()[1])+"."+String(ETH.localIP()[2])+"."+String(ETH.localIP()[3]), 5, 45);
+    tft.drawString("Name: " + String(hostname), 5, 68);
+
+    String DX = " - ";
+    if (ETH.fullDuplex()) {
+        DX += "Full Duplex";
+    }
+    else {
+        DX += "Half Duplex";
+    }
+
+    tft.drawString("ETH: " + String(ETH.linkSpeed()) + "Mbps" + DX, 5, 91);
+
+    tft.fillRect(20, 115, 200, 1, GREY); // Seperator
+    
+    tft.drawString("Controller Version:", 5, 120);
+    tft.drawString(String(VERSION), 5, 140);
+    tft.drawString("Latest Version:", 5, 165);
+    tft.drawString(latestVersion, 5, 185);
+
+    // AmpliPi logo
+    tft.setCursor((TFT_WIDTH / 3) - 15, 265, 2); // center
+    tft.setFreeFont(FSS18);
+    tft.print("Ampli");
+    tft.setTextColor(TFT_RED, TFT_BLACK);
+    tft.println("Pi");
+    
+    // Close / Update buttons
+    tft.setFreeFont(FSS9);
+    tft.setTextDatum(TC_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+
+    tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
+    tft.drawString("Close", (MAINZONE_X + 50), 292);
+
+    if (String(VERSION) != latestVersion) {
+        tft.fillRoundRect(RIGHTBUTTON_X, RIGHTBUTTON_Y, RIGHTBUTTON_W, RIGHTBUTTON_H, 6, TFT_DARKGREY);
+        tft.drawString("Update", (MAINZONE_X + 140 + 50), 292);
+        tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+    }
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+}
+
+
+void updateController()
+{
+    // Clear screen
+    clearMainArea();
+
+    tft.setFreeFont(FSS12);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawString("Coming soon...", 5, 50);
+
+    // Close button
+    tft.setFreeFont(FSS9);
+    tft.setTextDatum(TC_DATUM);
+    tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+
+    tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
+    tft.drawString("Close", (MAINZONE_X + 50), 292);
+    tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+}
+
+
 void drawCommandButtons()
 {
     // Currently, only Pandora streams support these buttons
     if (currentStreamType == "pandora")
     {
-        //if (commandLike) {
-        //    drawBmp("/heart_on.bmp", LIKEBUTTON_X, LIKEBUTTON_Y);
-        //}
-        //else {
+        if (cmdLike) {
+            drawBmp("/heart_on.bmp", LIKEBUTTON_X, LIKEBUTTON_Y);
+        }
+        else {
             drawBmp("/heart.bmp", LIKEBUTTON_X, LIKEBUTTON_Y);
-        //}
-        //if (commandDislike) {
-        //    drawBmp("/thumbdown_on.bmp", DISLIKEBUTTON_X, DISLIKEBUTTON_Y);
-        //}
-        //else {
+        }
+        if (cmdDislike) {
+            drawBmp("/thumbdown_on.bmp", DISLIKEBUTTON_X, DISLIKEBUTTON_Y);
+        }
+        else {
             drawBmp("/thumbdown.bmp", DISLIKEBUTTON_X, DISLIKEBUTTON_Y);
-        //}
+        }
 
-        //if (commandStatus == 'play') {
+        if (cmdPlaying) {
             drawBmp("/pause.bmp", PLAYPAUSEBUTTON_X, PLAYPAUSEBUTTON_Y);
-        //}
-        //else {
-        //    drawBmp("/play.bmp", PLAYPAUSEBUTTON_X, PLAYPAUSEBUTTON_Y);
-        //}
+        }
+        else {
+            drawBmp("/play.bmp", PLAYPAUSEBUTTON_X, PLAYPAUSEBUTTON_Y);
+        }
 
         drawBmp("/skip.bmp", SKIPBUTTON_X, SKIPBUTTON_Y);
     }
@@ -1150,11 +1249,27 @@ void drawCommandButtons()
 }
 
 void sendCommand(String command) {
-    String payload = "{\"vol\": " + String(command) + "}";
-    bool result = patchAPI("streams/" + String(amplipiZone1), payload);
+    if (command == "playpause") {
+        if (cmdPlaying) { command = "pause"; cmdPlaying = false; }
+        else { command = "play"; cmdPlaying = true; }
+    }
+    else if (command == "love") {
+        if (cmdLike) { cmdLike = false; }
+        else { cmdLike = true; }
+    }
+    else if (command == "ban") {
+        if (cmdDislike) { cmdDislike = false; }
+        else { cmdDislike = true; }
+    }
+
+    String payload = "{}";
+    bool result = postAPI("streams/" + String(currentStreamID) + "/" + command, payload);
     Serial.print("sendCommand result: ");
     Serial.println(result);
+
+    drawCommandButtons();
 }
+
 
 void sendVolUpdate(int zone)
 {
@@ -1271,10 +1386,17 @@ void sendMuteUpdate(int zone)
 
 void drawMuteBtn(int zone)
 {
-    if (!updateMute1 && !updateMute2)
+    if (amplipiZone2Enabled && !updateMute1 && !updateMute2)
     {
+        // Only update mute button on screen if needed (Dual zone)
         return;
-    }; // Only update mute button on screen if we need to
+    };
+
+    if (!amplipiZone2Enabled && !updateMute1)
+    {
+        // Only update mute button on screen if needed (single zone)
+        return;
+    };
 
     Serial.print("Drawing mute button for zone ");
     Serial.println(zone);
@@ -1314,6 +1436,7 @@ void drawMuteBtn(int zone)
         if (muteZone1) { drawBmp("/volume_off.bmp", MUTE_X, MUTE2_Y); }
         else { drawBmp("/volume_up.bmp", MUTE_X, MUTE2_Y); }
         updateMute1 = false;
+        Serial.println("Disabling updateMute1.");
     }
 
 }
@@ -1491,6 +1614,8 @@ void drawMetadata()
     tft.drawString(displayArtist, (TFT_WIDTH / 2), (METATEXT_Y + 40), GFXFF);
 
     // Draw control buttons for streams that support it
+    cmdLike = false;
+    cmdDislike = false;
     drawCommandButtons();
 }
 
@@ -1569,7 +1694,8 @@ void getSource(String sourceID)
         updateSource = true;
         drawSource();
     }
-    else if (streamID == "0") {
+    else if (currentStreamID != streamID && streamID == "0") {
+        currentStreamID = streamID;
         currentStreamName = "Local - RCA";
         currentStreamType = "local";
 
@@ -1730,6 +1856,7 @@ void loop() {
             // Reload main metadata screen
             activeScreen = "metadata";
             metadata_refresh = true;
+            updateSource = true;
             updateMute1 = true;
             updateMute2 = true;
             updateAlbumart = true;
@@ -1772,6 +1899,31 @@ void loop() {
                 activeScreen = "off";
                 powerOffScreen();
                 Serial.print("Power off screen button hit.");
+            }
+
+            // Control buttons for supported streams
+            // Currently, only Pandora streams support these buttons
+            if (currentStreamType == "pandora")
+            {
+                // Play/pause
+                if ((x >= PLAYPAUSEBUTTON_X) && (x <= (PLAYPAUSEBUTTON_X + PLAYPAUSEBUTTON_W)) && (y >= PLAYPAUSEBUTTON_Y) && (y <= (PLAYPAUSEBUTTON_Y + PLAYPAUSEBUTTON_H))) {
+                    sendCommand("playpause");
+                }
+
+                // Skip
+                if ((x >= SKIPBUTTON_X) && (x <= (SKIPBUTTON_X + SKIPBUTTON_W)) && (y >= SKIPBUTTON_Y) && (y <= (SKIPBUTTON_Y + SKIPBUTTON_H))) {
+                    sendCommand("next");
+                }
+
+                // Like
+                if ((x >= LIKEBUTTON_X) && (x <= (LIKEBUTTON_X + LIKEBUTTON_W)) && (y >= LIKEBUTTON_Y) && (y <= (LIKEBUTTON_Y + LIKEBUTTON_H))) {
+                    sendCommand("love");
+                }
+
+                // Disike
+                if ((x >= DISLIKEBUTTON_X) && (x <= (DISLIKEBUTTON_X + DISLIKEBUTTON_W)) && (y >= DISLIKEBUTTON_Y) && (y <= (DISLIKEBUTTON_Y + DISLIKEBUTTON_H))) {
+                    sendCommand("ban");
+                }
             }
 
             // Mute button
@@ -1942,6 +2094,40 @@ void loop() {
 
             delay(200); // Debounce
         }
+        else if (activeScreen == "about")
+        {
+            // Close button
+            if ((x > LEFTBUTTON_X) && (x < (LEFTBUTTON_X + LEFTBUTTON_W)) && (y > LEFTBUTTON_Y) && (y <= (LEFTBUTTON_Y + LEFTBUTTON_H)))
+            {
+                // Reload main metadata screen
+                activeScreen = "metadata";
+                metadata_refresh = true;
+                updateMute1 = true;
+                updateMute2 = true;
+                updateAlbumart = true;
+                updateVol1 = true;
+                updateVol2 = true;
+                currentSourceOffset = 0;
+
+                clearMainArea();
+                if (amplipiZone2Enabled) {
+                    drawMuteBtn(1);
+                    drawMuteBtn(2);
+                }
+                else {
+                    drawMuteBtn(1);
+                }
+                drawMetadata();
+                drawAlbumart();
+            }
+            
+            // Update Controller button
+            if ((x > RIGHTBUTTON_X) && (x < (RIGHTBUTTON_X + RIGHTBUTTON_W)) && (y > RIGHTBUTTON_Y) && (y <= (RIGHTBUTTON_Y + RIGHTBUTTON_H)))
+            {
+                updateController();
+            }
+            delay(200); // Debounce
+        }
         else if (activeScreen == "setting")
         {
             // Zone 1 Change
@@ -2039,6 +2225,12 @@ void loop() {
                     drawMetadata();
                     drawAlbumart();
                 }
+            }
+
+            // About Screen
+            if ((x > CENTERBUTTON_X) && (x < (CENTERBUTTON_X + CENTERBUTTON_W)) && (y > RIGHTBUTTON_Y) && (y <= (RIGHTBUTTON_Y + RIGHTBUTTON_H)))
+            {
+                drawAbout();
             }
             
             // Cancel Changes
