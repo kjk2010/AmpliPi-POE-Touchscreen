@@ -22,6 +22,7 @@ Built using VS Code with Platform.IO.
 - TFT_MOSI=13
 - TFT_SCLK=14
 - TFT_MISO=16
+- TFT_BL=16
 - DTOUCH_CS=4
 
 2. Clone this Github project
@@ -31,15 +32,14 @@ Built using VS Code with Platform.IO.
 
 Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi is needed, use the WiFi repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad 
 
-#### To do items
-- [ ] Add support for stream commands: Play/Pause, Next, Stop, Like
+#### To do items for first release
 - [ ] Add local inputs to source selection screen
-- [ ] Show configured names for local inputs
-- [ ] Add AmpliPi preset functionality
-- [ ] Put metadata into sprites and scroll long titles
-- [ ] Split display functions from update data functions. Display functions should be drawing everything from memory, and update functions should be updating the data and triggering a draw if data has changed.
-- [ ] Show album art for all available stream sources (will require patching AmpliPi)
-- [ ] Backlight control with configuable timeout options
+- [ ] Add remote update support, either from and AmpliPi server or GitHub
+- [x] Add support for stream commands: Play/Pause, Next, Stop, Like
+
+#### Finished items
+- [x] Show album art for all available stream sources
+- [x] Backlight control
 - [x] Switch to JPEG images instead of BMP in order to speed up downloading and display of album art
 - [x] Add support full multiple screen sizes
 - [x] Add POE and Ethernet capabilities, utilizing the Olimex ESP32-POE board
@@ -52,10 +52,10 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 - [x] Add mDNS resolution support so touchscreen can find amplipi.local
 
 #### Future features
+- Put metadata into sprites and scroll long titles
+- Add AmpliPi preset functionality
 - Screen time out options (PIR, touch, screensaver showing full screen only metadata?)
 - Switch to using SSE or WebSockets, whichever AmpliPi server offers, instead of spamming API
 - Simple web server to allow changing of AmpliPi name/IP, display settings, color scheme
-- Add OTA upgrades
 - Integrate Home Assistant control options on a second screen
 - Add support for expansion units (more than 6 output zones)
-- Control stream sources like Spotify playlists or Pandora stations
