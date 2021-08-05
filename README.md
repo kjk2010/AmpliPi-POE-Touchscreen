@@ -33,8 +33,9 @@ Built using VS Code with Platform.IO.
 Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi is needed, use the WiFi repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad 
 
 #### To do items for first release
-- [ ] Add local inputs to source selection screen
-- [ ] Add remote update support, either from and AmpliPi server or GitHub
+- [ ] Add remote update support from GitHub
+- [ ] Fix bug where top source bar is blank on startup if source is "None"
+- [x] Add local inputs on source selection screen
 - [x] Add support for stream commands: Play/Pause, Next, Stop, Like
 
 #### Finished items
@@ -59,3 +60,4 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 - Simple web server to allow changing of AmpliPi name/IP, display settings, color scheme
 - Integrate Home Assistant control options on a second screen
 - Add support for expansion units (more than 6 output zones)
+- Allow firmware updates to come from AmpliPi server

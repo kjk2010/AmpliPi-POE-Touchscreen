@@ -934,6 +934,26 @@ void drawSourceSelection()
     int bi = 0; // Base iterator within 'print 6 items' loop (0-6)
     int i = 0; // Filtered iterator
     int max = currentSourceOffset + 6;
+    
+    // Start with showing 'OFF' and 'Local - RCA' options at top of the list
+    if (currentSourceOffset == 0) {
+        // Display 'OFF' button
+        tft.setTextColor(TFT_WHITE, TFT_MAROON);
+        tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), 240, 38, 6, TFT_MAROON); // Selection box
+        tft.drawString("OFF", (MAINZONE_X + 10), (MAINZONE_Y + (40 * bi) + 10));
+        sourceIDs[bi] = -1;
+        ++bi;
+        ++i;
+
+        // Display 'Local - RCA' button
+        tft.setTextColor(TFT_WHITE, TFT_NAVY);
+        tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), 240, 38, 6, TFT_NAVY); // Selection box
+        tft.drawString("Local - RCA", (MAINZONE_X + 10), (MAINZONE_Y + (40 * bi) + 10));
+        sourceIDs[bi] = 0;
+        ++bi;
+        ++i;
+    }
+
     for (JsonObject value : apiStatus["streams"].as<JsonArray>()) {
         JsonObject thisStream = value;
         streamName = thisStream["name"].as<String>();
@@ -1018,10 +1038,19 @@ void selectSource(int y)
     else if (y >= 158 && y < 198) { selected = 3; }
     else if (y >= 198 && y < 238) { selected = 4; }
     else if (y >= 238 && y < 278) { selected = 5; }
-    
-    String inputID = "stream=" + String(sourceIDs[selected]);
 
-    // Send 
+    String inputID;
+    if (sourceIDs[selected] == -1) {
+        inputID = "None";
+    }
+    else if (sourceIDs[selected] == 0) {
+        inputID = "local";
+    }
+    else {
+        inputID = "stream=" + String(sourceIDs[selected]);
+    }
+
+    // Send to API
     String payload = "{\"input\": \"" + inputID + "\"}";
     Serial.println(payload);
     bool result = patchAPI("sources/" + String(amplipiSource), payload);
