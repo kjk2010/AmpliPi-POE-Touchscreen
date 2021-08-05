@@ -196,7 +196,6 @@ int newAmplipiSource = 0;
 int newAmplipiZone1 = 0;
 int newAmplipiZone2 = 0;
 bool amplipiZone2Enabled = false;
-int totalStreams = 0;
 int currentSourceOffset = 0;
 int sourceIDs[6];
 bool updateAlbumart = true;
@@ -934,9 +933,10 @@ void drawSourceSelection()
     int bi = 0; // Base iterator within 'print 6 items' loop (0-6)
     int i = 0; // Filtered iterator
     int max = currentSourceOffset + 6;
+    int totalStreams = 0;
     
     // Start with showing 'OFF' and 'Local - RCA' options at top of the list
-    if (currentSourceOffset == 0) {
+    if (currentSourceOffset <= 0) {
         // Display 'OFF' button
         tft.setTextColor(TFT_WHITE, TFT_MAROON);
         tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), 240, 38, 6, TFT_MAROON); // Selection box
@@ -953,6 +953,9 @@ void drawSourceSelection()
         ++bi;
         ++i;
     }
+    else {
+        currentSourceOffset = currentSourceOffset - 2; // Subtract the OFF And Local - RCA buttons
+    }
 
     for (JsonObject value : apiStatus["streams"].as<JsonArray>()) {
         JsonObject thisStream = value;
@@ -961,8 +964,8 @@ void drawSourceSelection()
         Serial.print(" - ");
         Serial.print(streamName);
         
-        if (streamName.length() >= 19) {
-            streamName = streamName.substring(0,18) + "...";
+        if (streamName.length() >= 17) {
+            streamName = streamName.substring(0,16) + "...";
         }
 
         // Only print 6 items on screen
@@ -985,8 +988,8 @@ void drawSourceSelection()
         ++totalStreams;
     }
 
-    if (totalStreams > currentSourceOffset) { showNext = true; }
-    if (currentSourceOffset >= 6) { showPrev = true; }
+    if (totalStreams >= (currentSourceOffset + 5)) { showNext = true; } //TODO: Fix issue with 'next' erroneously showing if 8 or more streams exist.
+    if (currentSourceOffset >= 4) { showPrev = true; }
 
     // Previous and Next buttons
     tft.setTextDatum(TC_DATUM);
@@ -996,7 +999,7 @@ void drawSourceSelection()
     if (showPrev)
     {
         tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
-        tft.drawString("< Prev", (MAINZONE_X + 50), 292);
+        tft.drawString("< Back", (MAINZONE_X + 50), 292);
     }
 
     // Settings button

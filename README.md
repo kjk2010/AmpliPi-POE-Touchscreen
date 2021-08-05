@@ -35,17 +35,18 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 #### To do items for first release
 - [ ] Add remote update support from GitHub
 - [ ] Fix bug where top source bar is blank on startup if source is "None"
-- [x] Add local inputs on source selection screen
-- [x] Add support for stream commands: Play/Pause, Next, Stop, Like
+- [ ] Fix bug on stream selection screen showing 'next' button incorrectly when more than 8 streams exist
 
 #### Finished items
+- [x] Add local inputs on stream selection screen
+- [x] Add support for stream commands: Play/Pause, Next, Stop, Like
 - [x] Show album art for all available stream sources
 - [x] Backlight control
 - [x] Switch to JPEG images instead of BMP in order to speed up downloading and display of album art
 - [x] Add support full multiple screen sizes
 - [x] Add POE and Ethernet capabilities, utilizing the Olimex ESP32-POE board
-- [x] Add source selection screen
-- [x] Add local source to source selection screen
+- [x] Add stream selection screen
+- [x] Add local source to stream selection screen
 - [x] Add settings screen: Change Zone, Change Source, Reset WiFi & AmpliPi Host, Reset Touchscreen
 - [x] Move zone selection to settings screen and save to config file
 - [x] Show album art for local inputs
@@ -53,6 +54,7 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 - [x] Add mDNS resolution support so touchscreen can find amplipi.local
 
 #### Future features
+- Update GUI design, including source selection buttons
 - Put metadata into sprites and scroll long titles
 - Add AmpliPi preset functionality
 - Screen time out options (PIR, touch, screensaver showing full screen only metadata?)
