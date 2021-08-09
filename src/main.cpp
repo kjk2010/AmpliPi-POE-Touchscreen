@@ -56,20 +56,15 @@ static bool eth_connected = false;
 #define LEFTBUTTON_W 100
 #define LEFTBUTTON_H 38
 
-#define CENTERBUTTON_X 101
+#define CENTERBUTTON_X ((TFT_WIDTH / 2) - (38 / 2)) // Center
 #define CENTERBUTTON_Y (TFT_HEIGHT - 38)
 #define CENTERBUTTON_W 38
 #define CENTERBUTTON_H 38
 
-#define RIGHTBUTTON_X 140
-#define RIGHTBUTTON_Y (TFT_HEIGHT - 38)
 #define RIGHTBUTTON_W 100
 #define RIGHTBUTTON_H 38
-
-#define SETTINGBUTTON_X 102
-#define SETTINGBUTTON_Y (TFT_HEIGHT - 38)
-#define SETTINGBUTTON_W 36
-#define SETTINGBUTTON_H 36
+#define RIGHTBUTTON_X (TFT_WIDTH - RIGHTBUTTON_W)
+#define RIGHTBUTTON_Y (TFT_HEIGHT - 38)
 
 // Main area, normally where metadata is shown
 #define MAINZONE_X 0
@@ -144,6 +139,9 @@ static bool eth_connected = false;
     // Max length for title and artist metadata
     #define TITLE_LEN 18
     #define ARTIST_LEN 18
+
+    // Number of streams to show for stream selection
+    #define MAX_STREAMS 6
 #else
     // Maximum length of the source name
     #define SRC_NAME_LEN 23
@@ -151,6 +149,9 @@ static bool eth_connected = false;
     // Max length for title and artist metadata
     #define TITLE_LEN 25
     #define ARTIST_LEN 25
+
+    // Number of streams to show for stream selection
+    #define MAX_STREAMS 10
 #endif
 
 /******************************/
@@ -939,7 +940,7 @@ void drawSourceSelection()
     if (currentSourceOffset <= 0) {
         // Display 'OFF' button
         tft.setTextColor(TFT_WHITE, TFT_MAROON);
-        tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), 240, 38, 6, TFT_MAROON); // Selection box
+        tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), TFT_WIDTH, 38, 6, TFT_MAROON); // Selection box
         tft.drawString("OFF", (MAINZONE_X + 10), (MAINZONE_Y + (40 * bi) + 10));
         sourceIDs[bi] = -1;
         ++bi;
@@ -947,7 +948,7 @@ void drawSourceSelection()
 
         // Display 'Local - RCA' button
         tft.setTextColor(TFT_WHITE, TFT_NAVY);
-        tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), 240, 38, 6, TFT_NAVY); // Selection box
+        tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), TFT_WIDTH, 38, 6, TFT_NAVY); // Selection box
         tft.drawString("Local - RCA", (MAINZONE_X + 10), (MAINZONE_Y + (40 * bi) + 10));
         sourceIDs[bi] = 0;
         ++bi;
@@ -964,8 +965,8 @@ void drawSourceSelection()
         Serial.print(" - ");
         Serial.print(streamName);
         
-        if (streamName.length() >= 17) {
-            streamName = streamName.substring(0,16) + "...";
+        if (streamName.length() > SRC_NAME_LEN) {
+            streamName = streamName.substring(0,SRC_NAME_LEN) + "...";
         }
 
         // Only print 6 items on screen
@@ -980,7 +981,7 @@ void drawSourceSelection()
             sourceIDs[bi] = thisStream["id"].as<int>();
 
             // Display stream button
-            tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), 240, 38, 6, TFT_NAVY); // Selection box
+            tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), TFT_WIDTH, 38, 6, TFT_NAVY); // Selection box
             tft.drawString(streamName, (MAINZONE_X + 10), (MAINZONE_Y + (40 * bi) + 10));
             ++bi;
         }
@@ -999,17 +1000,17 @@ void drawSourceSelection()
     if (showPrev)
     {
         tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
-        tft.drawString("< Back", (MAINZONE_X + 50), 292);
+        tft.drawString("< Back", (LEFTBUTTON_X + 50), (LEFTBUTTON_Y + 10));
     }
 
     // Settings button
-    drawBmp("/settings.bmp", SETTINGBUTTON_X, SETTINGBUTTON_Y);
+    drawBmp("/settings.bmp", CENTERBUTTON_X, CENTERBUTTON_Y);
 
     // Next button
     if (showNext)
     {
         tft.fillRoundRect(RIGHTBUTTON_X, RIGHTBUTTON_Y, RIGHTBUTTON_W, RIGHTBUTTON_H, 6, TFT_DARKGREY);
-        tft.drawString("Next >", (MAINZONE_X + 140 + 50), 292);
+        tft.drawString("Next >", (RIGHTBUTTON_X + 50), (RIGHTBUTTON_Y + 10));
     }
 
     // Reset to default
@@ -1149,14 +1150,14 @@ void drawSettings()
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
 
     tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
-    tft.drawString("Save", (MAINZONE_X + 50), 292);
+    tft.drawString("Save", (LEFTBUTTON_X + 50), (RIGHTBUTTON_Y + 10));
 
     tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    tft.drawString("?", 119, 292); // About
+    tft.drawString("?", (CENTERBUTTON_X + 19), (CENTERBUTTON_Y + 10)); // About
 
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
     tft.fillRoundRect(RIGHTBUTTON_X, RIGHTBUTTON_Y, RIGHTBUTTON_W, RIGHTBUTTON_H, 6, TFT_DARKGREY);
-    tft.drawString("Cancel", (MAINZONE_X + 140 + 50), 292);
+    tft.drawString("Cancel", (RIGHTBUTTON_X + 50), (RIGHTBUTTON_Y + 10));
 
     // Reset to default
     tft.setTextDatum(TL_DATUM);
@@ -1212,11 +1213,11 @@ void drawAbout()
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
 
     tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
-    tft.drawString("Close", (MAINZONE_X + 50), 292);
+    tft.drawString("Close", (LEFTBUTTON_X + 50), (LEFTBUTTON_Y + 10));
 
     if (String(VERSION) != latestVersion) {
         tft.fillRoundRect(RIGHTBUTTON_X, RIGHTBUTTON_Y, RIGHTBUTTON_W, RIGHTBUTTON_H, 6, TFT_DARKGREY);
-        tft.drawString("Update", (MAINZONE_X + 140 + 50), 292);
+        tft.drawString("Update", (RIGHTBUTTON_X + 50), (RIGHTBUTTON_Y + 10));
         tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
     }
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -1432,6 +1433,8 @@ void drawMuteBtn(int zone)
 
     Serial.print("Drawing mute button for zone ");
     Serial.println(zone);
+    Serial.print("amplipiZone2Enabled setting: ");
+    Serial.println(amplipiZone2Enabled);
 
     if (amplipiZone2Enabled) {
         // Two Zone Mode
@@ -2034,9 +2037,16 @@ void loop() {
         {
             // Source Selection screen
             Serial.println("Current screen: source");
-            
+
+            // Power screen off (location: top left)
+            if ((x >= SRCBAR_X) && (x <= (SRCBAR_X + 36)) && (y >= SRCBAR_Y) && (y <= (SRCBAR_Y + 36)))
+            {
+                activeScreen = "off";
+                powerOffScreen();
+                Serial.print("Power off screen button hit.");
+            }
             // Source Select button (cancel source select)
-            if ((x > SRCBUTTON_X) && (x < (SRCBUTTON_X + SRCBUTTON_W)))
+            else if ((x > SRCBUTTON_X) && (x < (SRCBUTTON_X + SRCBUTTON_W)))
             {
                 if ((y > SRCBUTTON_Y) && (y <= (SRCBUTTON_Y + SRCBUTTON_H)))
                 {
@@ -2062,9 +2072,8 @@ void loop() {
                     drawAlbumart();
                 }
             }
-
             // Select source (anything between source bar and Prev/Next buttons)
-            if ((y > 36) && (y <= RIGHTBUTTON_Y))
+            else if ((y > 36) && (y <= RIGHTBUTTON_Y))
             {
                 selectSource(y);
 
@@ -2089,9 +2098,8 @@ void loop() {
                 drawMetadata();
                 drawAlbumart();
             }
-            
             // Previous list of sources
-            if ((x > LEFTBUTTON_X) && (x < (LEFTBUTTON_X + LEFTBUTTON_W)))
+            else if ((x > LEFTBUTTON_X) && (x < (LEFTBUTTON_X + LEFTBUTTON_W)))
             {
                 if ((y > LEFTBUTTON_Y) && (y <= (LEFTBUTTON_Y + LEFTBUTTON_H)))
                 {
@@ -2101,9 +2109,8 @@ void loop() {
                     drawSourceSelection();
                 }
             }
-            
             // Next list of sources
-            if ((x > RIGHTBUTTON_X) && (x < (RIGHTBUTTON_X + RIGHTBUTTON_W)))
+            else if ((x > RIGHTBUTTON_X) && (x < (RIGHTBUTTON_X + RIGHTBUTTON_W)))
             {
                 if ((y > RIGHTBUTTON_Y) && (y <= (RIGHTBUTTON_Y + RIGHTBUTTON_H)))
                 {
@@ -2112,11 +2119,10 @@ void loop() {
                     drawSourceSelection();
                 }
             }
-
             // Settings screen
-            if ((x > SETTINGBUTTON_X) && (x < (SETTINGBUTTON_X + SETTINGBUTTON_W)))
+            else if ((x > CENTERBUTTON_X) && (x < (CENTERBUTTON_X + CENTERBUTTON_W)))
             {
-                if ((y > SETTINGBUTTON_Y) && (y <= (SETTINGBUTTON_Y + SETTINGBUTTON_H)))
+                if ((y > CENTERBUTTON_Y) && (y <= (CENTERBUTTON_Y + CENTERBUTTON_H)))
                 {
                     // Show settings screen
                     activeScreen = "setting";
@@ -2232,8 +2238,8 @@ void loop() {
                     sprintf(amplipiSource, "%d", newAmplipiSource);
                     saveFileFSConfigFile();
                     
-                    // If amplipiZone2 is 0 or great, Zone 2 should be enabled
-                    if (newAmplipiSource >= 0) { amplipiZone2Enabled = true; }
+                    // If the new amplipiZone2 setting is 0 or great, Zone 2 should be enabled
+                    if (newAmplipiZone2 >= 0) { amplipiZone2Enabled = true; }
                     else { amplipiZone2Enabled = false; }
 
                     // Reload main metadata screen
