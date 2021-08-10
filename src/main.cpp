@@ -144,14 +144,14 @@ static bool eth_connected = false;
     #define MAX_STREAMS 6
 #else
     // Maximum length of the source name
-    #define SRC_NAME_LEN 23
+    #define SRC_NAME_LEN 25
 
     // Max length for title and artist metadata
     #define TITLE_LEN 25
     #define ARTIST_LEN 25
 
     // Number of streams to show for stream selection
-    #define MAX_STREAMS 10
+    #define MAX_STREAMS 9
 #endif
 
 /******************************/
@@ -885,7 +885,7 @@ void drawSource()
     tft.setFreeFont(FSS9);
     tft.setTextDatum(TL_DATUM);
     tft.fillRect(SRCBAR_X, SRCBAR_Y, SRCBAR_W, SRCBAR_H, TFT_BLACK); // Clear source bar first
-    tft.drawString(currentStreamName, 38, 5, GFXFF); // Top Left
+    tft.drawString(currentStreamName, 38, 10, GFXFF); // Top Left
     drawBmp("/power.bmp", 0, 0);
     drawBmp("/source.bmp", (SRCBAR_W - 36), SRCBAR_Y);
 
@@ -925,39 +925,49 @@ void drawSourceSelection()
 
     // Draw size selecton boxes
     tft.setTextDatum(TL_DATUM);
-    tft.setTextColor(TFT_WHITE, TFT_NAVY);
+    //tft.setTextColor(TFT_WHITE, TFT_NAVY);
     tft.setFreeFont(FSS12);
 
     Serial.print("currentSourceOffset: ");
     Serial.println(currentSourceOffset);
     Serial.println("Streams:");
-    int bi = 0; // Base iterator within 'print 6 items' loop (0-6)
-    int i = 0; // Filtered iterator
-    int max = currentSourceOffset + 6;
-    int totalStreams = 0;
+    int bi = 0; // Base iterator within 'print MAX_STREAMS items' loop (0-6)
+    int i = 0; // Stream iterator
+    int maxstreams = currentSourceOffset + MAX_STREAMS;
+
+    uint16_t vlightgrey = tft.color565(240, 240, 240);
+    tft.setTextColor(TFT_BLACK, vlightgrey);
     
     // Start with showing 'OFF' and 'Local - RCA' options at top of the list
     if (currentSourceOffset <= 0) {
         // Display 'OFF' button
-        tft.setTextColor(TFT_WHITE, TFT_MAROON);
-        tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), TFT_WIDTH, 38, 6, TFT_MAROON); // Selection box
-        tft.drawString("OFF", (MAINZONE_X + 10), (MAINZONE_Y + (40 * bi) + 10));
+        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
+        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), 12, 38, TFT_RED); // Left marker on selection box
+        tft.drawRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, TFT_RED); // Selection box
+        tft.drawString("OFF", (MAINZONE_X + 15), (MAINZONE_Y + (42 * bi) + 10));
         sourceIDs[bi] = -1;
         ++bi;
         ++i;
 
         // Display 'Local - RCA' button
-        tft.setTextColor(TFT_WHITE, TFT_NAVY);
-        tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), TFT_WIDTH, 38, 6, TFT_NAVY); // Selection box
-        tft.drawString("Local - RCA", (MAINZONE_X + 10), (MAINZONE_Y + (40 * bi) + 10));
+        //tft.setTextColor(TFT_WHITE, TFT_NAVY);
+        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
+        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), 12, 38, TFT_NAVY); // Left marker on selection box
+        tft.drawRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, TFT_NAVY); // Selection box
+        tft.drawString("Local - RCA", (MAINZONE_X + 15), (MAINZONE_Y + (42 * bi) + 10));
         sourceIDs[bi] = 0;
         ++bi;
         ++i;
     }
     else {
-        currentSourceOffset = currentSourceOffset - 2; // Subtract the OFF And Local - RCA buttons
+        currentSourceOffset = currentSourceOffset - 2; // Subtract the 'OFF' and 'Local - RCA' buttons
     }
 
+    int currentSO = currentSourceOffset;
+    bool zone2Enabled = amplipiZone2Enabled;
+
+    Serial.print("Max streams: ");
+    Serial.println(maxstreams);
     for (JsonObject value : apiStatus["streams"].as<JsonArray>()) {
         JsonObject thisStream = value;
         streamName = thisStream["name"].as<String>();
@@ -969,28 +979,33 @@ void drawSourceSelection()
             streamName = streamName.substring(0,SRC_NAME_LEN) + "...";
         }
 
-        // Only print 6 items on screen
-        if (i >= currentSourceOffset && i < max) 
+        // Only print MAX_STREAM number of items on screen, but continue iterating through the rest of the list
+        if (i >= currentSO && i < maxstreams)
         {
             Serial.print(" - String X: ");
-            Serial.print((MAINZONE_X + 10));
+            Serial.print((MAINZONE_X + 12));
             Serial.print(" - String Y: ");
-            Serial.println((MAINZONE_Y + (40 * bi) + 10));
+            Serial.println((MAINZONE_Y + (42 * bi) + 10));
 
             // Add to sourceIDs array to be used in the main loop when one of the button is selected
             sourceIDs[bi] = thisStream["id"].as<int>();
 
             // Display stream button
-            tft.fillRoundRect(MAINZONE_X, (MAINZONE_Y + (40 * bi)), TFT_WIDTH, 38, 6, TFT_NAVY); // Selection box
-            tft.drawString(streamName, (MAINZONE_X + 10), (MAINZONE_Y + (40 * bi) + 10));
+            tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
+            tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), 12, 38, TFT_NAVY); // Left marker on selection box
+            tft.drawRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, TFT_NAVY); // Selection box
+            tft.drawString(streamName, (MAINZONE_X + 15), (MAINZONE_Y + (42 * bi) + 10));
             ++bi;
         }
+        Serial.print("i: ");
+        Serial.println(i);
         ++i;
-        ++totalStreams;
     }
+    currentSourceOffset = currentSO; // Fixes a bug where going through more than 6 items on the JSON array sets the currentSourceOffset to the sixth item's ID
+    amplipiZone2Enabled = zone2Enabled; // Also affects this global setting
 
-    if (totalStreams >= (currentSourceOffset + 5)) { showNext = true; } //TODO: Fix issue with 'next' erroneously showing if 8 or more streams exist.
-    if (currentSourceOffset >= 4) { showPrev = true; }
+    if (i > (MAX_STREAMS + currentSourceOffset)) { showNext = true; }
+    if (currentSourceOffset > 0) { showPrev = true; }
 
     // Previous and Next buttons
     tft.setTextDatum(TC_DATUM);
@@ -1034,6 +1049,10 @@ void selectSource(int y)
     4: 158 - 197
     5: 198 - 237
     6: 238 - 277
+    -- If screen size is greater than 320px:
+    7: //TODO
+    8: //TODO
+    9: //TODO
     */
     int selected = 0;
     if (y >= 38 && y < 78) { selected = 0; }
@@ -1042,6 +1061,7 @@ void selectSource(int y)
     else if (y >= 158 && y < 198) { selected = 3; }
     else if (y >= 198 && y < 238) { selected = 4; }
     else if (y >= 238 && y < 278) { selected = 5; }
+    //TODO//TODO//TODO
 
     String inputID;
     if (sourceIDs[selected] == -1) {
@@ -1324,10 +1344,17 @@ void drawVolume(int x, int zone)
         return;
     }; // Only update volume on screen if we need to
 
-    if (x > 185)
+    Serial.print("Drawing volume");
+    if (x > 185 && TFT_WIDTH == 240)
     {
+        // Bring to 100% if it's close to the screen width
         x = 200;
-    } // Bring to 100% if it's close
+    }
+    else if (x > 265 && TFT_WIDTH == 320)
+    {
+        // Bring to 100% if it's close to the screen width
+        x = 280;
+    }
 
     if (amplipiZone2Enabled) {
         // Two Zone Mode
@@ -1381,6 +1408,7 @@ void drawVolume(int x, int zone)
             tft.fillCircle(x, (VOLBAR2_Y + 2), 8, BLUE);
         }
         updateVol1 = false;
+        updateVol2 = false;
     }
 
 }
@@ -1400,8 +1428,11 @@ void sendMuteUpdate(int zone)
             payload = "{\"mute\": false}";
         }
         bool result = patchAPI("zones/" + String(amplipiZone1), payload);
-        Serial.print("sendMuteUpdate result: ");
-        Serial.println(result);
+        if (DEBUGAPIREQ)
+        {
+            Serial.print("sendMuteUpdate result: ");
+            Serial.println(result);
+        }
     }
     else if (zone == 2)
     {
@@ -1412,8 +1443,11 @@ void sendMuteUpdate(int zone)
             payload = "{\"mute\": false}";
         }
         bool result = patchAPI("zones/" + String(amplipiZone2), payload);
-        Serial.print("sendMuteUpdate result: ");
-        Serial.println(result);
+        if (DEBUGAPIREQ)
+        {
+            Serial.print("sendMuteUpdate result: ");
+            Serial.println(result);
+        }
     }
 }
 
@@ -1510,7 +1544,7 @@ void getZone()
         // Test if parsing succeeds.
         if (error)
         {
-            Serial.print(F("deserializeJson() failed: "));
+            Serial.print(F("getZone() (2 zones, zone 1) deserializeJson() failed: "));
             Serial.println(error.f_str());
         }
 
@@ -1537,6 +1571,7 @@ void getZone()
             volPercent1 = newVolPercent1;
             updateVol1 = true;
         }
+        Serial.println("Calling drawVolume (1 of 2)");
         drawVolume(int((volPercent1 * 1.6) + 45), 1); // Multiply by 1.5 (150px) and add 40 pixels to give it the x coord
 
         // Zone 2
@@ -1547,7 +1582,7 @@ void getZone()
         // Test if parsing succeeds.
         if (error2)
         {
-            Serial.print(F("deserializeJson() failed: "));
+            Serial.print(F("getZone() (2 zones, zone 2) deserializeJson() failed: "));
             Serial.println(error2.f_str());
         }
 
@@ -1574,7 +1609,7 @@ void getZone()
             volPercent2 = newVolPercent2;
             updateVol2 = true;
         }
-
+        Serial.println("Calling drawVolume (2 of 2)");
         drawVolume(int((volPercent2 * 1.5) + 45), 2); // Multiply by 1.5 (150px) and add 40 pixels to give it the x coord
     }
     else {
@@ -1586,7 +1621,7 @@ void getZone()
         // Test if parsing succeeds.
         if (error)
         {
-            Serial.print(F("deserializeJson() failed: "));
+            Serial.print(F("getZone() (1 zone) deserializeJson() failed: "));
             Serial.println(error.f_str());
         }
 
@@ -1596,6 +1631,10 @@ void getZone()
             muteZone1 = currentMute;
             updateMute1 = true;
             updateVol1 = true;
+            Serial.print("Updating mute and volume. currentMute:");
+            Serial.println(currentMute);
+            Serial.print("muteZone1:");
+            Serial.println(muteZone1);
         }
         drawMuteBtn(1);
 
@@ -1612,7 +1651,12 @@ void getZone()
         if (volPercent1 != newVolPercent1) {
             volPercent1 = newVolPercent1;
             updateVol1 = true;
+            Serial.print("Updating volume. volPercent1:");
+            Serial.println(volPercent1);
+            Serial.print("newVolPercent1:");
+            Serial.println(newVolPercent1);
         }
+        Serial.println("Calling drawVolume (1 of 1)");
         drawVolume(int((volPercent1 * 1.5) + 45), 1); // Multiply by 1.5 (150px) and add 40 pixels to give it the x coord
     }
 
@@ -2104,7 +2148,7 @@ void loop() {
                 if ((y > LEFTBUTTON_Y) && (y <= (LEFTBUTTON_Y + LEFTBUTTON_H)))
                 {
                     // Show previous set of streams
-                    currentSourceOffset = currentSourceOffset - 6;
+                    currentSourceOffset = currentSourceOffset - MAX_STREAMS;
                     if (currentSourceOffset < 0) { currentSourceOffset = 0; }
                     drawSourceSelection();
                 }
@@ -2115,7 +2159,7 @@ void loop() {
                 if ((y > RIGHTBUTTON_Y) && (y <= (RIGHTBUTTON_Y + RIGHTBUTTON_H)))
                 {
                     // Show next set of streams
-                    currentSourceOffset = currentSourceOffset + 6;
+                    currentSourceOffset = currentSourceOffset + MAX_STREAMS;
                     drawSourceSelection();
                 }
             }

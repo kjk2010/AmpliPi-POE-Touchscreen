@@ -35,9 +35,10 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 #### To do items for first release
 - [ ] Add remote update support from GitHub
 - [ ] Fix bug where top source bar is blank on startup if source is "None"
-- [ ] Fix bug on stream selection screen showing 'next' button incorrectly when more than 8 streams exist
+- [ ] Fix flashing volume control bug
 
 #### Finished items
+- [x] Fix bug on stream selection screen showing 'next' button incorrectly when more than 8 streams exist
 - [x] Add local inputs on stream selection screen
 - [x] Add support for stream commands: Play/Pause, Next, Stop, Like
 - [x] Show album art for all available stream sources
