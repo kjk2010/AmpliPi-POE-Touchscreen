@@ -1,15 +1,13 @@
 # AmpliPi POE Touchscreen Controller
 A POE-powered touchscreen controller designed to control [AmpliPi](https://amplipi.com), using the Olimex ESP32-PoE board.
 
-For the WiFi version, go to this repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad
-
 Currently a work in progress, nearing initial release.
 
 Built using VS Code with Platform.IO.
 
 #### Currently supported hardware
 - Olimex ESP32-PoE board
-- ILI9341 or ILI9488 compatible TFT touchscreen
+- ILI9341 or ILI9488 compatible TFT touchscreen with resolutions of 240x320 or 320x480
 
 #### Basic setup instructions
 1. Wire the TFT touchscreen to the ESP32-PoE using the UEXT connector (PCB details coming soon). Edit platform.ini as needed.
@@ -27,12 +25,14 @@ Built using VS Code with Platform.IO.
 2. Clone this Github project
 3. Upload Filesystem Image to ESP32-PoE (this uploads the files in the data folder to the ESP32's file system)
 4. Compile and upload to ESP32-PoE
-5. Replace app.py from the amplipi folder on the AmpliPi server. This patch includes the 'get_stream_image' function to provide album art to the controller. Requires 'pillow' python3 library (pip3 install pillow).
+5. Power on controller. It will look for an AmpliPi to http://amplipi.local
+
+A 3D printable faceplate design will be available after the first controller release.
 
 Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi is needed, use the WiFi repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad 
 
 #### To do items for first release
-- [ ] Add remote update support from GitHub
+- [ ] Add controller update support from local AmpliPi source (will require a minor AmpliPi web server modification)
 
 #### Finished items
 - [x] Add rotation setting to settings screen
