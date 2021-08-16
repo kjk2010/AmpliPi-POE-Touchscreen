@@ -1,6 +1,5 @@
 # AmpliPi POE Touchscreen Controller
-POE-powered touchscreen controller for AmpliPi
-A touchscreen controller designed to control [AmpliPi](https://amplipi.com), using the Olimex ESP32-PoE board.
+A POE-powered touchscreen controller designed to control [AmpliPi](https://amplipi.com), using the Olimex ESP32-PoE board.
 
 For the WiFi version, go to this repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad
 
