@@ -198,7 +198,7 @@ int newAmplipiZone1 = 0;
 int newAmplipiZone2 = 0;
 bool amplipiZone2Enabled = false;
 int currentSourceOffset = 0;
-int sourceIDs[6];
+int sourceIDs[9];
 bool updateAlbumart = true;
 bool updateSource = false;
 bool updateMute1 = true;
@@ -210,6 +210,7 @@ float volPercent2 = 100;
 bool updateVol1 = true;
 bool updateVol2 = true;
 bool metadata_refresh = true;
+int screenRotation = 0; // Default value that can be changed in settings. 0 or 2
 
 // Command statuses
 bool cmdPlaying = true;
@@ -265,6 +266,7 @@ bool saveFileFSConfigFile()
     json["amplipiZone1"] = amplipiZone1;
     json["amplipiZone2"] = amplipiZone2;
     json["amplipiSource"] = amplipiSource;
+    json["screenRotation"] = tft.getRotation();
 
     File configFile = SPIFFS.open(configFileName, "w");
 
@@ -335,6 +337,9 @@ bool loadFileFSConfigFile()
             
                     if (json["amplipiSource"])
                         strncpy(amplipiSource, json["amplipiSource"], sizeof(amplipiSource));
+            
+                    if (json["screenRotation"])
+                        screenRotation = json["screenRotation"];
                 }
 
                 //serializeJson(json, Serial);
@@ -347,23 +352,6 @@ bool loadFileFSConfigFile()
             // Config file doesn't exist. Create config file with default settings
             saveFileFSConfigFile();
         }
-
-        // Check to see if IP or DNS
-        if (validateIPv4(amplipiHost)) {
-            // Is an IP
-            amplipiHostIP = String(amplipiHost);
-            Serial.print("amplipiHostIP (IP): ");
-            Serial.println(amplipiHostIP);
-        }
-        else {
-            // Not an IP, look up via MDNS:
-            amplipiHostIP = findMDNS(String(amplipiHost));
-#if DEBUG_WEBSERVER
-            amplipiHostIP += ":5000";
-#endif
-            //Serial.print("amplipiHostIP (mDNS): ");
-            //Serial.println(amplipiHostIP);
-        }
     }
     else
     {
@@ -371,6 +359,27 @@ bool loadFileFSConfigFile()
         return false;
     }
     return true;
+}
+
+
+void getAmpliPiIP()
+{
+    // Check to see if IP or DNS
+    if (validateIPv4(amplipiHost)) {
+        // Is an IP
+        amplipiHostIP = String(amplipiHost);
+        Serial.print("amplipiHostIP (IP): ");
+        Serial.println(amplipiHostIP);
+    }
+    else {
+        // Not an IP, look up via MDNS:
+        amplipiHostIP = findMDNS(String(amplipiHost));
+#if DEBUG_WEBSERVER
+        amplipiHostIP += ":5000";
+#endif
+        //Serial.print("amplipiHostIP (mDNS): ");
+        //Serial.println(amplipiHostIP);
+    }
 }
 
 
@@ -873,7 +882,7 @@ void drawAlbumart()
 }
 
 
-// Show the current source on screen, top left (by default)
+// Show the current source on screen, top 36px of screen (by default)
 void drawSource()
 {
     // Only update source on screen if we need
@@ -1042,26 +1051,30 @@ void selectSource(int y)
     Serial.print("Source Select - Y: ");
     Serial.println(y);
 
-    /* Box Y values
-    1: 38 - 77
-    2: 78 - 117
-    3: 118 - 157
-    4: 158 - 197
-    5: 198 - 237
-    6: 238 - 277
-    -- If screen size is greater than 320px:
-    7: //TODO
-    8: //TODO
-    9: //TODO
+    /* Box Y values. Selection boxes are 38 pixels tall, with 4 pixels between boxes
+    1: 36 - 74
+    2: 78 - 116
+    3: 120 - 158
+    4: 162 - 200
+    5: 204 - 242
+    6: 246 - 284
+    -- If screen length is greater than 320px:
+    7: 288 - 326
+    8: 330 - 368
+    9: 372 - 410
+
+    Add a couple pixels around the boxes:
     */
     int selected = 0;
-    if (y >= 38 && y < 78) { selected = 0; }
-    else if (y >= 78 && y < 118) { selected = 1; }
-    else if (y >= 118 && y < 158) { selected = 2; }
-    else if (y >= 158 && y < 198) { selected = 3; }
-    else if (y >= 198 && y < 238) { selected = 4; }
-    else if (y >= 238 && y < 278) { selected = 5; }
-    //TODO//TODO//TODO
+    if (y >= 36 && y <= 76) { selected = 0; }
+    else if (y >= 77 && y <= 118) { selected = 1; }
+    else if (y >= 119 && y <= 160) { selected = 2; }
+    else if (y >= 161 && y <= 202) { selected = 3; }
+    else if (y >= 203 && y <= 244) { selected = 4; }
+    else if (y >= 245 && y <= 286) { selected = 5; }
+    else if (y >= 287 && y <= 328) { selected = 6; }
+    else if (y >= 329 && y <= 370) { selected = 7; }
+    else if (y >= 371 && y <= 412) { selected = 8; }
 
     String inputID;
     if (sourceIDs[selected] == -1) {
@@ -1121,12 +1134,12 @@ void drawSettings()
     tft.drawString("Zone 1: " + String(amplipiZone1), 5, 50);
 
     tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-    tft.fillRoundRect(160, 42, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString("<", 170, 47);
-    tft.fillRoundRect(200, 42, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString(">", 212, 47);
+    tft.fillRoundRect((TFT_WIDTH - 80), 42, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString("<", (TFT_WIDTH - 70), 47);
+    tft.fillRoundRect((TFT_WIDTH - 40), 42, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString(">", (TFT_WIDTH - 28), 47);
 
-    tft.fillRect(20, 80, 200, 1, GREY); // Seperator
+    tft.fillRect(20, 80, (TFT_WIDTH - 40), 1, GREY); // Seperator
     
     // Zone 2
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -1136,34 +1149,38 @@ void drawSettings()
     tft.drawString("Zone 2: " + thisZone, 5, 90);
 
     tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-    tft.fillRoundRect(160, 82, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString("<", 170, 87);
-    tft.fillRoundRect(200, 82, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString(">", 212, 87);
+    tft.fillRoundRect((TFT_WIDTH - 80), 82, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString("<", (TFT_WIDTH - 70), 87);
+    tft.fillRoundRect((TFT_WIDTH - 40), 82, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString(">", (TFT_WIDTH - 28), 87);
     
-    tft.fillRect(20, 120, 200, 1, GREY); // Seperator
+    tft.fillRect(20, 120, (TFT_WIDTH - 40), 1, GREY); // Seperator
 
     // Source
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.drawString("Source: " + String(amplipiSource), 5, 130);
 
     tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-    tft.fillRoundRect(160, 122, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString("<", 170, 127);
-    tft.fillRoundRect(200, 122, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString(">", 212, 127);
+    tft.fillRoundRect((TFT_WIDTH - 80), 122, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString("<", (TFT_WIDTH - 70), 127);
+    tft.fillRoundRect((TFT_WIDTH - 40), 122, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString(">", (TFT_WIDTH - 28), 127);
 
-    tft.fillRect(20, 160, 200, 1, GREY); // Seperator
+    tft.fillRect(20, 160, (TFT_WIDTH - 40), 1, GREY); // Seperator
 
-    // Reset WiFi & AmpliPi URL
+    // Restart Controller
     tft.setFreeFont(FSS9);
     tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-    tft.fillRoundRect(0, 190, 240, 36, 6, TFT_DARKGREEN);
-    tft.drawString("Reboot Controller", 10, 200);
-    
+    tft.fillRoundRect(0, 170, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
+    tft.drawString("Reboot Controller", 10, 180);
+
     // Re-calibrate touchscreen
-    tft.fillRoundRect(0, 230, 240, 36, 6, TFT_DARKGREEN);
-    tft.drawString("Re-calibrate Touchscreen", 10, 240);
+    tft.fillRoundRect(0, 210, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
+    tft.drawString("Re-calibrate Touchscreen", 10, 220);
+
+    // Rotate touchscreen up and down
+    tft.fillRoundRect(0, 250, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
+    tft.drawString("Flip Screen & Re-calibrate", 10, 260);
 
     // Save, About, and Cancel buttons
     tft.setTextDatum(TC_DATUM);
@@ -1213,7 +1230,7 @@ void drawAbout()
 
     tft.drawString("ETH: " + String(ETH.linkSpeed()) + "Mbps" + DX, 5, 91);
 
-    tft.fillRect(20, 115, 200, 1, GREY); // Seperator
+    tft.fillRect(20, 115, (TFT_WIDTH - 40), 1, GREY); // Seperator
     
     tft.drawString("Controller Version:", 5, 120);
     tft.drawString(String(VERSION), 5, 140);
@@ -1296,8 +1313,8 @@ void drawCommandButtons()
         // Clear buttons
         tft.fillRect(LIKEBUTTON_X, LIKEBUTTON_Y, 36, 36, TFT_BLACK);
         tft.fillRect(DISLIKEBUTTON_X, DISLIKEBUTTON_Y, 36, 36, TFT_BLACK);
-        tft.fillRect(PLAYPAUSEBUTTON_X, PLAYPAUSEBUTTON_X, 36, 36, TFT_BLACK);
-        tft.fillRect(SKIPBUTTON_X, SKIPBUTTON_X, 36, 36, TFT_BLACK);
+        tft.fillRect(PLAYPAUSEBUTTON_X, PLAYPAUSEBUTTON_Y, 36, 36, TFT_BLACK);
+        tft.fillRect(SKIPBUTTON_X, SKIPBUTTON_Y, 36, 36, TFT_BLACK);
     }
 }
 
@@ -1332,10 +1349,12 @@ void sendVolUpdate(int zone)
     else if (zone == 2) { volDb = (int)(volPercent2 * 0.79 - 79); } // Convert to proper AmpliPi number (-79 to 0)
 
     String payload = "{\"vol\": " + String(volDb) + "}";
+    Serial.println(payload);
     bool result = patchAPI("zones/" + String(amplipiZone1), payload);
     Serial.print("sendVolUpdate result: ");
     Serial.println(result);
 }
+
 
 void drawVolume(int x, int zone)
 {
@@ -1344,17 +1363,10 @@ void drawVolume(int x, int zone)
         return;
     }; // Only update volume on screen if we need to
 
-    Serial.print("Drawing volume");
-    if (x > 185 && TFT_WIDTH == 240)
-    {
-        // Bring to 100% if it's close to the screen width
-        x = 200;
-    }
-    else if (x > 265 && TFT_WIDTH == 320)
-    {
-        // Bring to 100% if it's close to the screen width
-        x = 280;
-    }
+    Serial.print("Drawing volume bar");
+
+    // Bring to 100% if it's close to the screen edge
+    if (x > (TFT_WIDTH - 55)) { x = TFT_WIDTH - 40; }
 
     if (amplipiZone2Enabled) {
         // Two Zone Mode
@@ -1533,6 +1545,9 @@ String getValue(String data, char separator, int index)
 
 void getZone()
 {
+    // Multiply the new volume percent by the screen width minus 80 and add 45 pixels (offset for the mute button) to get the x coord
+    float volBarWidth = (TFT_WIDTH - 80) / 100; // 1.6 for 240px screen, 2.4 for 320px screen.
+
     if (amplipiZone2Enabled) {
         // Two Zone Mode
 
@@ -1559,7 +1574,7 @@ void getZone()
 
         // Update volume bar if data from API has changed
         int currentVol = ampSourceStatus["vol"];
-        int newVolPercent1;
+        float newVolPercent1;
         if (currentVol < 0) {
             newVolPercent1 = currentVol / 0.79 + 100; // Convert from AmpliPi number (-79 to 0) to percent
         }
@@ -1572,7 +1587,7 @@ void getZone()
             updateVol1 = true;
         }
         Serial.println("Calling drawVolume (1 of 2)");
-        drawVolume(int((volPercent1 * 1.6) + 45), 1); // Multiply by 1.5 (150px) and add 40 pixels to give it the x coord
+        drawVolume(int((volPercent1 * volBarWidth) + 45), 1);
 
         // Zone 2
         String json2 = requestAPI("zones/" + String(amplipiZone2));
@@ -1597,7 +1612,7 @@ void getZone()
 
         // Update volume bar if data from API has changed
         int currentVol2 = ampSourceStatus2["vol"];
-        int newVolPercent2;
+        float newVolPercent2;
         if (currentVol2 < 0) {
             newVolPercent2 = currentVol2 / 0.79 + 100; // Convert from AmpliPi number (-79 to 0) to percent
         }
@@ -1610,7 +1625,7 @@ void getZone()
             updateVol2 = true;
         }
         Serial.println("Calling drawVolume (2 of 2)");
-        drawVolume(int((volPercent2 * 1.5) + 45), 2); // Multiply by 1.5 (150px) and add 40 pixels to give it the x coord
+        drawVolume(int((volPercent2 * volBarWidth) + 45), 2); // Multiply by 1.5 (150px) and add 40 pixels to give it the x coord
     }
     else {
         // One Zone Mode
@@ -1640,7 +1655,7 @@ void getZone()
 
         // Update volume bar if data from API has changed
         int currentVol = ampSourceStatus["vol"];
-        int newVolPercent1;
+        float newVolPercent1;
         if (currentVol < 0) {
             newVolPercent1 = currentVol / 0.79 + 100; // Convert from AmpliPi number (-79 to 0) to percent
         }
@@ -1657,7 +1672,7 @@ void getZone()
             Serial.println(newVolPercent1);
         }
         Serial.println("Calling drawVolume (1 of 1)");
-        drawVolume(int((volPercent1 * 1.5) + 45), 1); // Multiply by 1.5 (150px) and add 40 pixels to give it the x coord
+        drawVolume(int((volPercent1 * volBarWidth) + 45), 1); // Multiply by 1.5 (150px) and add 40 pixels to give it the x coord
     }
 
 }
@@ -1686,9 +1701,10 @@ void drawMetadata()
     Serial.println("Refreshing metadata on screen");
 
     tft.setTextDatum(TC_DATUM);
-    tft.setFreeFont(FSS12);
+    tft.setFreeFont(FSSB12); // Bold font
     tft.fillRect(METATEXT_X, METATEXT_Y, METATEXT_W, METATEXT_H, TFT_BLACK); // Clear metadata area first
     tft.drawString(displaySong, (TFT_WIDTH / 2), (METATEXT_Y + 5), GFXFF);   // Center Middle
+    tft.setFreeFont(FSS12);
     tft.fillRect(20, (METATEXT_Y + 32), (METATEXT_W - 40), 1, GREY);         // Seperator between song and artist
     tft.drawString(displayArtist, (TFT_WIDTH / 2), (METATEXT_Y + 40), GFXFF);
 
@@ -1733,6 +1749,10 @@ void getSource(String sourceID)
     {
         streamID = "0";
     }
+    else if (sourceInput == "None")
+    {
+        streamID = "-1";
+    }
     else
     {
         streamID = getValue(sourceInput, '=', 1);
@@ -1742,7 +1762,7 @@ void getSource(String sourceID)
     Serial.println(streamID);
 
     // Update stream name if it has changed
-    if (currentStreamID != streamID && streamID != "0")
+    if (currentStreamID != streamID && streamID != "0" && streamID != "-1")
     {
         currentStreamID = streamID;
 
@@ -1774,9 +1794,19 @@ void getSource(String sourceID)
         drawSource();
     }
     else if (currentStreamID != streamID && streamID == "0") {
+        // Local - RCA Stream
         currentStreamID = streamID;
         currentStreamName = "Local - RCA";
         currentStreamType = "local";
+
+        updateSource = true;
+        drawSource();
+    }
+    else if (currentStreamID != streamID && streamID == "-1") {
+        // No Stream, Disabled
+        currentStreamID = streamID;
+        currentStreamName = "Source Off";
+        currentStreamType = "none";
 
         updateSource = true;
         drawSource();
@@ -1835,12 +1865,24 @@ void setup() {
     Serial.begin(115200);
     Serial.println("AmpliPi System Startup");
 
+    // Load configuration file
+    loadFileFSConfigFile();
+
+    newAmplipiZone1 = atoi(amplipiZone1);
+    newAmplipiZone2 = atoi(amplipiZone2);
+    newAmplipiSource = atoi(amplipiSource);
+
+    // If amplipiZone2 is 0 or great, Zone 2 should be enabled
+    if (atoi(amplipiZone2) >= 0) { amplipiZone2Enabled = true; }
+    else { amplipiZone2Enabled = false; }
+
+
     // Initialize screen
     tft.init();
     Serial.println("Screen initialized");
 
     // Set the rotation before we calibrate
-    tft.setRotation(0);
+    tft.setRotation(screenRotation);
 
     // Wrap test at right and bottom of screen
     tft.setTextWrap(true, true);
@@ -1897,21 +1939,17 @@ void setup() {
     tft.drawString(String(ETH.localIP()[0])+"."+String(ETH.localIP()[1])+"."+String(ETH.localIP()[2])+"."+String(ETH.localIP()[3]), (TFT_WIDTH / 2), (TFT_HEIGHT - 20), GFXFF); // Center Middle
     delay(500);
 
-    loadFileFSConfigFile();
-
-    newAmplipiZone1 = atoi(amplipiZone1);
-    newAmplipiZone2 = atoi(amplipiZone2);
-    newAmplipiSource = atoi(amplipiSource);
-
-    // If amplipiZone2 is 0 or great, Zone 2 should be enabled
-    if (atoi(amplipiZone2) >= 0) { amplipiZone2Enabled = true; }
-    else { amplipiZone2Enabled = false; }
+    getAmpliPiIP();
 
     // Clear screen
     tft.fillScreen(TFT_BLACK);
     tft.setCursor(0, 20, 2);
 }
 
+/**
+ * This is where the touch events and automatic metadata refresh happen.
+ * We first check to see what screen we're currently on, then we look for the touch events (buttons, etc) that are available for that screen.
+ */
 void loop() {
     uint16_t x, y;
 
@@ -2046,11 +2084,13 @@ void loop() {
             // Volume control
             if ((x > VOLBARZONE_X) && (x < (VOLBARZONE_X + VOLBARZONE_W)))
             {
+                // Multiply the new volume percent by the screen width minus 80 and add 45 pixels (offset for the mute button) to get the x coord
+                float volBarWidth = (TFT_WIDTH - 80) / 100; // 1.6 for 240px screen, 2.4 for 320px screen.
                 if (amplipiZone2Enabled && (y > VOLBARZONE1_Y) && (y <= (VOLBARZONE1_Y + VOLBARZONE_H)))
                 {
                     // Two Zone Mode, upper section
                     updateVol1 = true;
-                    volPercent1 = (x - 35) / 1.5;
+                    volPercent1 = (x - 40) / volBarWidth;
                     drawVolume(x, 1);
                     sendVolUpdate(1);
                     Serial.print("Volume control hit.");
@@ -2060,14 +2100,14 @@ void loop() {
                     if (amplipiZone2Enabled) {
                         // Two Zone Mode, lower section
                         updateVol2 = true;
-                        volPercent2 = (x - 35) / 1.5;
+                        volPercent2 = (x - 40) / volBarWidth;
                         drawVolume(x, 2);
                         sendVolUpdate(2);
                     }
                     else {
                         // One Zone Mode
                         updateVol1 = true;
-                        volPercent1 = (x - 35) / 1.5;
+                        volPercent1 = (x - 40) / volBarWidth;
                         drawVolume(x, 1);
                         sendVolUpdate(1);
                     }
@@ -2254,14 +2294,40 @@ void loop() {
             }
 
             // Restart
-            if ((y >= 190) && (y < 230))
+            if ((y >= 170) && (y < 210))
             {
                 ESP.restart();
             }
 
             // Re-calibrate Touchscreen
-            if ((y >= 230) && (y <= 270))
+            if ((y >= 210) && (y < 250))
             {
+                // Delete TouchCalData file and reboot
+                if (SPIFFS.exists(CALIBRATION_FILE))
+                {
+                    // Delete if we want to re-calibrate
+                    SPIFFS.remove(CALIBRATION_FILE);
+                }
+                ESP.restart();
+            }
+
+            // Rotate Touchscreen
+            if ((y >= 250) && (y < 282))
+            {
+                uint8_t currentRotation = tft.getRotation();
+                Serial.print("Current rotation: ");
+                Serial.println(currentRotation);
+                if (currentRotation == 0)
+                {
+                    tft.setRotation(2);
+
+                }
+                else {
+                    tft.setRotation(0);
+                }
+
+                saveFileFSConfigFile();
+
                 // Delete TouchCalData file and reboot
                 if (SPIFFS.exists(CALIBRATION_FILE))
                 {

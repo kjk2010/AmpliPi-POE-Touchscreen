@@ -1,6 +1,6 @@
-# AmpliPi-POE-Touchscreen-Keypad
+# AmpliPi POE Touchscreen Controller
 POE-powered touchscreen controller for AmpliPi
-A touchscreen keypad designed to control AmpliPi, using the Olimex ESP32-PoE board.
+A touchscreen controller designed to control [AmpliPi](https://amplipi.com), using the Olimex ESP32-PoE board.
 
 For the WiFi version, go to this repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad
 
@@ -34,15 +34,16 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 
 #### To do items for first release
 - [ ] Add remote update support from GitHub
-- [ ] Fix bug where top source bar is blank on startup if source is "None"
-- [ ] Fix flashing volume control bug
 
 #### Finished items
+- [x] Add rotation setting to settings screen
+- [x] Fix bug where top source bar is blank on startup if source is "None"
+- [x] Update GUI design, including source selection buttons
 - [x] Fix bug on stream selection screen showing 'next' button incorrectly when more than 8 streams exist
 - [x] Add local inputs on stream selection screen
 - [x] Add support for stream commands: Play/Pause, Next, Stop, Like
 - [x] Show album art for all available stream sources
-- [x] Backlight control
+- [x] Backlight control (button to turn screen on and off)
 - [x] Switch to JPEG images instead of BMP in order to speed up downloading and display of album art
 - [x] Add support full multiple screen sizes
 - [x] Add POE and Ethernet capabilities, utilizing the Olimex ESP32-POE board
@@ -55,12 +56,12 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 - [x] Add mDNS resolution support so touchscreen can find amplipi.local
 
 #### Future features
-- Update GUI design, including source selection buttons
+- Touching album art should go to a full screen mode with only album art and metadata. When clicking anywhere on the screen in this mode, switch back to regular metadata mode.
 - Put metadata into sprites and scroll long titles
 - Add AmpliPi preset functionality
 - Screen time out options (PIR, touch, screensaver showing full screen only metadata?)
 - Switch to using SSE or WebSockets, whichever AmpliPi server offers, instead of spamming API
 - Simple web server to allow changing of AmpliPi name/IP, display settings, color scheme
-- Integrate Home Assistant control options on a second screen
 - Add support for expansion units (more than 6 output zones)
 - Allow firmware updates to come from AmpliPi server
+- Integrate Home Assistant control options on a second screen
