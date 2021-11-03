@@ -5,6 +5,30 @@ Currently a work in progress, nearing initial release.
 
 Built using VS Code with Platform.IO.
 
+### Preview of device and UI
+###### Primary screen with currently playing metadata:
+![Internet radio source with metadata](https://github.com/kjk2010/AmpliPi-POE-Touchscreen/blob/main/InternetRadioWithMetadata.jpg?raw=true)
+Top left button turns off screen. Touching the screen while off will turn it back on.
+Top right button shows source selection screen.
+Bottom area is volume level and mute control.
+
+###### FM radio source with multiple zones
+![FM radio source with multiple zones](https://github.com/kjk2010/AmpliPi-POE-Touchscreen/blob/main/FMRadioWithMultiZones.jpg?raw=true)
+Ability to control up to two zone volumes from the main screen.
+
+###### Local (RCA) source
+![Local (RCA) source](https://github.com/kjk2010/AmpliPi-POE-Touchscreen/blob/main/LocalInput.jpg?raw=true)
+The primary screen when the local source is selected.
+
+###### Source selection screen
+![Source selection screen](https://github.com/kjk2010/AmpliPi-POE-Touchscreen/blob/main/SourceSelection.jpg?raw=true)
+Clicking the button on the top right lets you select any available source.
+
+###### Settings screen
+![Settings screen](https://github.com/kjk2010/AmpliPi-POE-Touchscreen/blob/main/Settings.jpg?raw=true)
+A few settings to adjust which zones and source ID to control.
+
+
 #### Currently supported hardware
 - Olimex ESP32-PoE board
 - ILI9341 or ILI9488 compatible TFT touchscreen with resolutions of 240x320 or 320x480
@@ -33,6 +57,7 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 
 #### To do items for first release
 - [ ] Add controller update support from local AmpliPi source (will require a minor AmpliPi web server modification)
+- [ ] Fix touch locations for buttons on settings page on larger screens
 
 #### Finished items
 - [x] Add rotation setting to settings screen
@@ -55,8 +80,10 @@ Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi
 - [x] Add mDNS resolution support so touchscreen can find amplipi.local
 
 #### Future features
+- Infrared receiver support to control volume level and mute on configured channel
+- Quick access buttons for controllable features, such as turning lights on and off
 - Touching album art should go to a full screen mode with only album art and metadata. When clicking anywhere on the screen in this mode, switch back to regular metadata mode.
-- Put metadata into sprites and scroll long titles
+- Put metadata into sprites to scroll long values
 - Add AmpliPi preset functionality
 - Screen time out options (PIR, touch, screensaver showing full screen only metadata?)
 - Switch to using SSE or WebSockets, whichever AmpliPi server offers, instead of spamming API

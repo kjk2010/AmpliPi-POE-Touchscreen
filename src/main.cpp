@@ -19,15 +19,16 @@
 #include <ETH.h>
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
+#include <Update.h>
 
 static bool eth_connected = false;
 
 #define VERSION "0.9.1 (beta)"
 
 /* Debug options */
-#define DEBUGAPIREQ true // Debug API requests to Serial
+#define DEBUGAPIREQ false // Debug API requests to Serial
 
-#define DEBUG_WEBSERVER true // are you running the AmpliPi debug server on port 5000?
+#define DEBUG_WEBSERVER false // are you running the AmpliPi debug server on port 5000?
 
 /**************************************/
 /* Configure screen colors and layout */
@@ -147,7 +148,7 @@ static bool eth_connected = false;
     #define SRC_NAME_LEN 25
 
     // Max length for title and artist metadata
-    #define TITLE_LEN 25
+    #define TITLE_LEN 24
     #define ARTIST_LEN 25
 
     // Number of streams to show for stream selection
@@ -1205,7 +1206,8 @@ void drawSettings()
 
 void drawAbout()
 {
-    // TODO: Pull latest version from a remote source (AmpliPi or GitHub?)
+    // TODO: Pull latest version from a remote source (AmpliPi)
+    //http://amplipi.local:5000/poetsctrlver.txt
     String latestVersion = "0.9.1 (beta)";
 
     // Stop metadata refresh
@@ -2003,19 +2005,21 @@ void loop() {
             Serial.println("Current screen: metadata");
 
             // Source Select (location: top right)
-            if ((x > SRCBUTTON_X) && (x < (SRCBUTTON_X + SRCBUTTON_W)) && (y > SRCBUTTON_Y) && (y <= (SRCBUTTON_Y + SRCBUTTON_H)))
+            if ((x >= SRCBUTTON_X) && (x <= (SRCBUTTON_X + SRCBUTTON_W)) && (y >= SRCBUTTON_Y) && (y <= (SRCBUTTON_Y + SRCBUTTON_H)))
             {
                 activeScreen = "source";
                 drawSourceSelection();
                 Serial.print("Source select button hit.");
+                delay(200); // Debounce
             }
             
             // Power screen off (location: top left)
-            if ((x >= SRCBAR_X) && (x <= (SRCBAR_X + 36)) && (y >= SRCBAR_Y) && (y <= (SRCBAR_Y + 36)))
+            if ((x >= SRCBAR_X) && (x <= (SRCBAR_X + 40)) && (y >= SRCBAR_Y) && (y <= (SRCBAR_Y + 40)))
             {
                 activeScreen = "off";
                 powerOffScreen();
                 Serial.print("Power off screen button hit.");
+                delay(200); // Debounce
             }
 
             // Control buttons for supported streams
@@ -2041,6 +2045,7 @@ void loop() {
                 if ((x >= DISLIKEBUTTON_X) && (x <= (DISLIKEBUTTON_X + DISLIKEBUTTON_W)) && (y >= DISLIKEBUTTON_Y) && (y <= (DISLIKEBUTTON_Y + DISLIKEBUTTON_H))) {
                     sendCommand("ban");
                 }
+                delay(200); // Debounce
             }
 
             // Mute button
@@ -2079,6 +2084,7 @@ void loop() {
                     }
                     Serial.print("Mute button hit.");
                 }
+                delay(200); // Debounce
             }
 
             // Volume control
@@ -2113,9 +2119,8 @@ void loop() {
                     }
                     Serial.print("Volume control hit.");
                 }
+                delay(100); // Debounce
             }
-            
-            delay(200); // Debounce
         }
         else if (activeScreen == "source")
         {
