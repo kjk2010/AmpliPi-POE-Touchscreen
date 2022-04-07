@@ -23,7 +23,7 @@
 
 static bool eth_connected = false;
 
-#define VERSION "0.9.1 (beta)"
+#define VERSION "1.0.0"
 
 /* Debug options */
 #define DEBUGAPIREQ false // Debug API requests to Serial
@@ -36,6 +36,9 @@ static bool eth_connected = false;
 // How quickly does the metadata refresh (in milliseconds)
 #define REFRESH_INTERVAL 2000
 
+// How long to show the selection screen before returning to the full-screen metadata screen (in milliseconds)
+#define SELECTSCREEN_TIMEOUT 10000
+
 // Colors
 #define GREY 0x5AEB
 #define BLUE 0x9DFF
@@ -44,40 +47,46 @@ static bool eth_connected = false;
 #define SRCBAR_X 0
 #define SRCBAR_Y 0
 #define SRCBAR_W TFT_WIDTH
-#define SRCBAR_H 36
+#define SRCBAR_H 50
 
 #define SRCBUTTON_X (TFT_WIDTH - 40) // Top right side of screen
 #define SRCBUTTON_Y 0
-#define SRCBUTTON_W 40 // Oversize the button for easy selection
-#define SRCBUTTON_H 40 // Oversize the button for easy selection
+#define SRCBUTTON_W 50 // Oversize the button for easy selection
+#define SRCBUTTON_H 50 // Oversize the button for easy selection
 
 // Settings and About Screen Buttons
 #define LEFTBUTTON_X 0
-#define LEFTBUTTON_Y (TFT_HEIGHT - 38)
-#define LEFTBUTTON_W 100
-#define LEFTBUTTON_H 38
+#define LEFTBUTTON_Y (TFT_HEIGHT - 50)
+#define LEFTBUTTON_W 130
+#define LEFTBUTTON_H 50
 
-#define CENTERBUTTON_X ((TFT_WIDTH / 2) - (38 / 2)) // Center
-#define CENTERBUTTON_Y (TFT_HEIGHT - 38)
-#define CENTERBUTTON_W 38
-#define CENTERBUTTON_H 38
+#define CENTERBUTTON_X ((TFT_WIDTH / 2) - (44 / 2)) // Center
+#define CENTERBUTTON_Y (TFT_HEIGHT - 45)
+#define CENTERBUTTON_W 50
+#define CENTERBUTTON_H 50
 
-#define RIGHTBUTTON_W 100
-#define RIGHTBUTTON_H 38
+#define RIGHTBUTTON_W 130
+#define RIGHTBUTTON_H 50
 #define RIGHTBUTTON_X (TFT_WIDTH - RIGHTBUTTON_W)
-#define RIGHTBUTTON_Y (TFT_HEIGHT - 38)
+#define RIGHTBUTTON_Y (TFT_HEIGHT - 50)
 
 // Main area, normally where metadata is shown
 #define MAINZONE_X 0
-#define MAINZONE_Y 36
+#define MAINZONE_Y 50
 #define MAINZONE_W TFT_WIDTH
-#define MAINZONE_H (TFT_HEIGHT - 36) // From below the source top bar to the bottom of the screen
+#define MAINZONE_H (TFT_HEIGHT - 50) // From below the source top bar to the bottom of the screen
 
-// Album art location
+// Album art location on selection screen
 #define ALBUMART_X 60
-#define ALBUMART_Y 36
-#define ALBUMART_W (TFT_WIDTH - 120)
+#define ALBUMART_Y 50
+#define ALBUMART_W 200
 #define ALBUMART_H ALBUMART_W
+
+// Album art location on metadata screen
+#define ALBUMART_FULL_X 0
+#define ALBUMART_FULL_Y 50
+#define ALBUMART_FULL_W TFT_WIDTH
+#define ALBUMART_FULL_H ALBUMART_W
 
 // Source Control Buttons
 #define PLAYPAUSEBUTTON_X (TFT_WIDTH - 36)
@@ -115,9 +124,9 @@ static bool eth_connected = false;
 // Mute button location
 #define MUTE_X 0
 #define MUTE1_Y (TFT_HEIGHT - 73) // (upper)
-#define MUTE2_Y (TFT_HEIGHT - 36) // (lower)
-#define MUTE_W 36
-#define MUTE_H 36
+#define MUTE2_Y (TFT_HEIGHT - 50) // (lower)
+#define MUTE_W 50
+#define MUTE_H 50
 
 // Volume control bar position and size
 #define VOLBAR_X 45
@@ -127,11 +136,11 @@ static bool eth_connected = false;
 #define VOLBAR_H 6
 
 // Volume control bar zone size
-#define VOLBARZONE_X 36
+#define VOLBARZONE_X 50
 #define VOLBARZONE1_Y (TFT_HEIGHT - 73) // (upper)
-#define VOLBARZONE2_Y (TFT_HEIGHT - 36) // (lower)
-#define VOLBARZONE_W (TFT_WIDTH - 36)
-#define VOLBARZONE_H 36
+#define VOLBARZONE2_Y (TFT_HEIGHT - 50) // (lower)
+#define VOLBARZONE_W (TFT_WIDTH - 50)
+#define VOLBARZONE_H 50
 
 #if TFT_WIDTH <= 240
     // Maximum length of the source name
@@ -142,7 +151,7 @@ static bool eth_connected = false;
     #define ARTIST_LEN 18
 
     // Number of streams to show for stream selection
-    #define MAX_STREAMS 6
+    #define MAX_STREAMS 5
 #else
     // Maximum length of the source name
     #define SRC_NAME_LEN 25
@@ -152,7 +161,7 @@ static bool eth_connected = false;
     #define ARTIST_LEN 25
 
     // Number of streams to show for stream selection
-    #define MAX_STREAMS 9
+    #define MAX_STREAMS 7
 #endif
 
 /******************************/
@@ -176,12 +185,15 @@ char amplipiZone1 [AMPLIPIZONE_LEN] = "0";
 char amplipiZone2 [AMPLIPIZONE_LEN] = "-1";
 char amplipiSource [AMPLIPIZONE_LEN] = "0";
 char configFileName[] = "/config.json";
+String hostname = "APCT"; // ETH MAC appended to this value
+String controllerVersionURI = "/static/controller_version.txt";
+String controllerBin = "/static/controller.bin";
 
 
 /*************************************/
 /* Configure globally used variables */
 /*************************************/
-String activeScreen = "metadata"; // Available screens: metadata, source, setting, about, off
+String activeScreen = "select"; // Available screens: select, metadata, source, setting, about, off
 String amplipiHostIP = "";
 String sourceName = "";
 String currentArtist = "";
@@ -192,7 +204,6 @@ String currentStreamID = "";
 String currentStreamName = "";
 String currentStreamType = "";
 String sourceInput;
-String hostname = "APCT"; // ETH MAC appended to this value
 bool inWarning = false;
 int newAmplipiSource = 0;
 int newAmplipiZone1 = 0;
@@ -808,12 +819,21 @@ bool postAPI(String request, String payload)
 }
 
 
-// Download album art or logo from AmpliPi API. Requires code update to AmpliPi API
+// Download album art or logo from AmpliPi API
 bool downloadAlbumart(String sourceID)
 {
+    int aaW = 200;
+
+    if (activeScreen == "select") {
+        aaW = ALBUMART_W;
+    }
+    else if (activeScreen == "metadata"){
+        aaW = ALBUMART_FULL_W;
+    }
+
     HTTPClient http;
     bool outcome = true;
-    String url = "http://" + amplipiHostIP + "/api/sources/" + sourceID + "/image/" + String(ALBUMART_W);
+    String url = "http://" + amplipiHostIP + "/api/sources/" + sourceID + "/image/" + String(aaW);
     String filename = "/albumart.jpg";
 
     // configure server and url
@@ -870,15 +890,28 @@ bool downloadAlbumart(String sourceID)
 // Show downloaded album art of screen
 void drawAlbumart()
 {
+    int aaX = 0;
+    int aaY = 0;
+
     // Only update album art on screen if we need
     if (!updateAlbumart)
     {
         return;
     };
-    tft.fillRect(ALBUMART_X, ALBUMART_Y, ALBUMART_W, ALBUMART_H, TFT_BLACK); // Clear album art first
+
+    if (activeScreen == "select") {
+        aaX = ALBUMART_X;
+        aaY = ALBUMART_Y;
+    }
+    else if (activeScreen == "metadata"){
+        aaX = ALBUMART_FULL_X;
+        aaY = ALBUMART_FULL_Y;
+    }
+
+    tft.fillRect(ALBUMART_FULL_X, ALBUMART_FULL_Y, ALBUMART_FULL_W, ALBUMART_FULL_H, TFT_BLACK); // Clear album art first
     Serial.println("Drawing album art.");
 
-    TJpgDec.drawFsJpg(ALBUMART_X, ALBUMART_Y, "/albumart.jpg");
+    TJpgDec.drawFsJpg(aaX, aaY, "/albumart.jpg");
     updateAlbumart = false;
 }
 
@@ -943,6 +976,7 @@ void drawSourceSelection()
     Serial.println("Streams:");
     int bi = 0; // Base iterator within 'print MAX_STREAMS items' loop (0-6)
     int i = 0; // Stream iterator
+    int itemH = 54;
     int maxstreams = currentSourceOffset + MAX_STREAMS;
 
     uint16_t vlightgrey = tft.color565(240, 240, 240);
@@ -951,20 +985,20 @@ void drawSourceSelection()
     // Start with showing 'OFF' and 'Local - RCA' options at top of the list
     if (currentSourceOffset <= 0) {
         // Display 'OFF' button
-        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
-        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), 12, 38, TFT_RED); // Left marker on selection box
-        tft.drawRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, TFT_RED); // Selection box
-        tft.drawString("OFF", (MAINZONE_X + 15), (MAINZONE_Y + (42 * bi) + 10));
+        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
+        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), 12, 38, TFT_RED); // Left marker on selection box
+        tft.drawRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), TFT_WIDTH, 38, TFT_RED); // Selection box
+        tft.drawString("OFF", (MAINZONE_X + 15), (MAINZONE_Y + (itemH * bi) + 10));
         sourceIDs[bi] = -1;
         ++bi;
         ++i;
 
         // Display 'Local - RCA' button
         //tft.setTextColor(TFT_WHITE, TFT_NAVY);
-        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
-        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), 12, 38, TFT_NAVY); // Left marker on selection box
-        tft.drawRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, TFT_NAVY); // Selection box
-        tft.drawString("Local - RCA", (MAINZONE_X + 15), (MAINZONE_Y + (42 * bi) + 10));
+        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
+        tft.fillRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), 12, 38, TFT_NAVY); // Left marker on selection box
+        tft.drawRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), TFT_WIDTH, 38, TFT_NAVY); // Selection box
+        tft.drawString("Local - RCA", (MAINZONE_X + 15), (MAINZONE_Y + (itemH * bi) + 10));
         sourceIDs[bi] = 0;
         ++bi;
         ++i;
@@ -995,16 +1029,16 @@ void drawSourceSelection()
             Serial.print(" - String X: ");
             Serial.print((MAINZONE_X + 12));
             Serial.print(" - String Y: ");
-            Serial.println((MAINZONE_Y + (42 * bi) + 10));
+            Serial.println((MAINZONE_Y + (itemH * bi) + 10));
 
             // Add to sourceIDs array to be used in the main loop when one of the button is selected
             sourceIDs[bi] = thisStream["id"].as<int>();
 
             // Display stream button
-            tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
-            tft.fillRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), 12, 38, TFT_NAVY); // Left marker on selection box
-            tft.drawRect(MAINZONE_X, (MAINZONE_Y + (42 * bi)), TFT_WIDTH, 38, TFT_NAVY); // Selection box
-            tft.drawString(streamName, (MAINZONE_X + 15), (MAINZONE_Y + (42 * bi) + 10));
+            tft.fillRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), TFT_WIDTH, 38, vlightgrey); // Selection box background
+            tft.fillRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), 12, 38, TFT_NAVY); // Left marker on selection box
+            tft.drawRect(MAINZONE_X, (MAINZONE_Y + (itemH * bi)), TFT_WIDTH, 38, TFT_NAVY); // Selection box
+            tft.drawString(streamName, (MAINZONE_X + 15), (MAINZONE_Y + (itemH * bi) + 10));
             ++bi;
         }
         Serial.print("i: ");
@@ -1025,7 +1059,7 @@ void drawSourceSelection()
     if (showPrev)
     {
         tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
-        tft.drawString("< Back", (LEFTBUTTON_X + 50), (LEFTBUTTON_Y + 10));
+        tft.drawString("< Back", (LEFTBUTTON_X + 60), (LEFTBUTTON_Y + 15));
     }
 
     // Settings button
@@ -1035,7 +1069,7 @@ void drawSourceSelection()
     if (showNext)
     {
         tft.fillRoundRect(RIGHTBUTTON_X, RIGHTBUTTON_Y, RIGHTBUTTON_W, RIGHTBUTTON_H, 6, TFT_DARKGREY);
-        tft.drawString("Next >", (RIGHTBUTTON_X + 50), (RIGHTBUTTON_Y + 10));
+        tft.drawString("Next >", (RIGHTBUTTON_X + 60), (RIGHTBUTTON_Y + 15));
     }
 
     // Reset to default
@@ -1132,13 +1166,13 @@ void drawSettings()
     // Zone 1
     tft.setFreeFont(FSS12);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString("Zone 1: " + String(amplipiZone1), 5, 50);
+    tft.drawString("Zone 1: " + String(amplipiZone1), 5, 55);
 
     tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-    tft.fillRoundRect((TFT_WIDTH - 80), 42, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString("<", (TFT_WIDTH - 70), 47);
-    tft.fillRoundRect((TFT_WIDTH - 40), 42, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString(">", (TFT_WIDTH - 28), 47);
+    tft.fillRoundRect((TFT_WIDTH - 80), 50, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString("<", (TFT_WIDTH - 70), 55);
+    tft.fillRoundRect((TFT_WIDTH - 40), 50, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString(">", (TFT_WIDTH - 28), 55);
 
     tft.fillRect(20, 80, (TFT_WIDTH - 40), 1, GREY); // Seperator
     
@@ -1150,10 +1184,10 @@ void drawSettings()
     tft.drawString("Zone 2: " + thisZone, 5, 90);
 
     tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-    tft.fillRoundRect((TFT_WIDTH - 80), 82, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString("<", (TFT_WIDTH - 70), 87);
-    tft.fillRoundRect((TFT_WIDTH - 40), 82, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString(">", (TFT_WIDTH - 28), 87);
+    tft.fillRoundRect((TFT_WIDTH - 80), 90, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString("<", (TFT_WIDTH - 70), 95);
+    tft.fillRoundRect((TFT_WIDTH - 40), 90, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString(">", (TFT_WIDTH - 28), 95);
     
     tft.fillRect(20, 120, (TFT_WIDTH - 40), 1, GREY); // Seperator
 
@@ -1162,40 +1196,41 @@ void drawSettings()
     tft.drawString("Source: " + String(amplipiSource), 5, 130);
 
     tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-    tft.fillRoundRect((TFT_WIDTH - 80), 122, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString("<", (TFT_WIDTH - 70), 127);
-    tft.fillRoundRect((TFT_WIDTH - 40), 122, 36, 36, 6, TFT_DARKGREEN);
-    tft.drawString(">", (TFT_WIDTH - 28), 127);
+    tft.fillRoundRect((TFT_WIDTH - 80), 130, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString("<", (TFT_WIDTH - 70), 135);
+    tft.fillRoundRect((TFT_WIDTH - 40), 130, 36, 36, 6, TFT_DARKGREEN);
+    tft.drawString(">", (TFT_WIDTH - 28), 135);
 
-    tft.fillRect(20, 160, (TFT_WIDTH - 40), 1, GREY); // Seperator
+    tft.fillRect(20, 170, (TFT_WIDTH - 40), 1, GREY); // Seperator
 
     // Restart Controller
     tft.setFreeFont(FSS9);
     tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-    tft.fillRoundRect(0, 170, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
-    tft.drawString("Reboot Controller", 10, 180);
+    tft.fillRoundRect(0, 180, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
+    tft.drawString("Reboot Controller", 10, 188);
 
     // Re-calibrate touchscreen
-    tft.fillRoundRect(0, 210, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
-    tft.drawString("Re-calibrate Touchscreen", 10, 220);
+    tft.fillRoundRect(0, 220, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
+    tft.drawString("Re-calibrate Touchscreen", 10, 228);
 
     // Rotate touchscreen up and down
-    tft.fillRoundRect(0, 250, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
-    tft.drawString("Flip Screen & Re-calibrate", 10, 260);
+    tft.fillRoundRect(0, 260, TFT_WIDTH, 36, 6, TFT_DARKGREEN);
+    tft.drawString("Flip Screen & Re-calibrate", 10, 268);
 
     // Save, About, and Cancel buttons
     tft.setTextDatum(TC_DATUM);
+    tft.setFreeFont(FSS12);
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
 
     tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
-    tft.drawString("Save", (LEFTBUTTON_X + 50), (RIGHTBUTTON_Y + 10));
+    tft.drawString("Save", (LEFTBUTTON_X + 60), (RIGHTBUTTON_Y + 15));
 
     tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    tft.drawString("?", (CENTERBUTTON_X + 19), (CENTERBUTTON_Y + 10)); // About
+    tft.drawString("?", (CENTERBUTTON_X + 22), (CENTERBUTTON_Y + 15)); // About
 
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
     tft.fillRoundRect(RIGHTBUTTON_X, RIGHTBUTTON_Y, RIGHTBUTTON_W, RIGHTBUTTON_H, 6, TFT_DARKGREY);
-    tft.drawString("Cancel", (RIGHTBUTTON_X + 50), (RIGHTBUTTON_Y + 10));
+    tft.drawString("Cancel", (RIGHTBUTTON_X + 60), (RIGHTBUTTON_Y + 15));
 
     // Reset to default
     tft.setTextDatum(TL_DATUM);
@@ -1206,9 +1241,50 @@ void drawSettings()
 
 void drawAbout()
 {
-    // TODO: Pull latest version from a remote source (AmpliPi)
-    //http://amplipi.local:5000/poetsctrlver.txt
-    String latestVersion = "0.9.1 (beta)";
+    activeScreen = "about";
+
+    // Pull latest version number from a remote source (AmpliPi)
+    HTTPClient http;
+
+    String url = "http://" + amplipiHostIP + controllerVersionURI;
+    String payload;
+    String latestVersion = "";
+
+#if DEBUGAPIREQ
+    Serial.print("[HTTP] begin...\n");
+    Serial.print("[HTTP] GET...\n");
+#endif
+    http.setConnectTimeout(5000);
+    http.setTimeout(5000);
+    http.begin(url); //HTTP
+
+    // start connection and send HTTP header
+    int httpCode = http.GET();
+
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+#if DEBUGAPIREQ
+        // HTTP header has been send and Server response header has been handled
+        Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+#endif
+        // file found at server
+        if (httpCode == HTTP_CODE_OK)
+        {
+            latestVersion = http.getString();
+            latestVersion.trim();
+#if DEBUGAPIREQ
+            Serial.println(payload);
+#endif
+        }
+    }
+    else
+    {
+        Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        //drawWarning("Unable to access AmpliPi");
+        latestVersion = "Unavailable";
+    }
+    http.end();
 
     // Stop metadata refresh
     metadata_refresh = false;
@@ -1219,8 +1295,8 @@ void drawAbout()
     // Show information:
     tft.setFreeFont(FSS9);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString("IP: " + String(ETH.localIP()[0])+"."+String(ETH.localIP()[1])+"."+String(ETH.localIP()[2])+"."+String(ETH.localIP()[3]), 5, 45);
-    tft.drawString("Name: " + String(hostname), 5, 68);
+    tft.drawString("IP: " + String(ETH.localIP()[0])+"."+String(ETH.localIP()[1])+"."+String(ETH.localIP()[2])+"."+String(ETH.localIP()[3]), 5, 50);
+    tft.drawString("Name: " + String(hostname), 5, 73);
 
     String DX = " - ";
     if (ETH.fullDuplex()) {
@@ -1230,14 +1306,14 @@ void drawAbout()
         DX += "Half Duplex";
     }
 
-    tft.drawString("ETH: " + String(ETH.linkSpeed()) + "Mbps" + DX, 5, 91);
+    tft.drawString("ETH: " + String(ETH.linkSpeed()) + "Mbps" + DX, 5, 96);
 
-    tft.fillRect(20, 115, (TFT_WIDTH - 40), 1, GREY); // Seperator
+    tft.fillRect(20, 120, (TFT_WIDTH - 40), 1, GREY); // Seperator
     
-    tft.drawString("Controller Version:", 5, 120);
-    tft.drawString(String(VERSION), 5, 140);
-    tft.drawString("Latest Version:", 5, 165);
-    tft.drawString(latestVersion, 5, 185);
+    tft.drawString("Controller Version:", 5, 125);
+    tft.drawString(String(VERSION), 5, 145);
+    tft.drawString("Latest Version:", 5, 170);
+    tft.drawString(latestVersion, 5, 190);
 
     // AmpliPi logo
     tft.setCursor((TFT_WIDTH / 3) - 15, 265, 2); // center
@@ -1247,38 +1323,218 @@ void drawAbout()
     tft.println("Pi");
     
     // Close / Update buttons
-    tft.setFreeFont(FSS9);
+    tft.setFreeFont(FSS12);
     tft.setTextDatum(TC_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
 
     tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
-    tft.drawString("Close", (LEFTBUTTON_X + 50), (LEFTBUTTON_Y + 10));
+    tft.drawString("Close", (LEFTBUTTON_X + 60), (LEFTBUTTON_Y + 15));
 
-    if (String(VERSION) != latestVersion) {
+    if (latestVersion != "Unavailable" && String(VERSION) != latestVersion) {
+        // Show Update button
         tft.fillRoundRect(RIGHTBUTTON_X, RIGHTBUTTON_Y, RIGHTBUTTON_W, RIGHTBUTTON_H, 6, TFT_DARKGREY);
-        tft.drawString("Update", (RIGHTBUTTON_X + 50), (RIGHTBUTTON_Y + 10));
+        tft.drawString("Update", (RIGHTBUTTON_X + 60), (RIGHTBUTTON_Y + 15));
         tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
     }
+    // Reset to default
+    tft.setTextDatum(TL_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setFreeFont(FSS12);
 }
 
+
+// Handle update of this device from OTA path
+// From: https://github.com/espressif/arduino-esp32/blob/master/libraries/Update/examples/AWS_S3_OTA_Update/AWS_S3_OTA_Update.ino
+
+// Variables to validate
+// response from S3
+long contentLength = 0;
+bool isValidContentType = false;
+
+// Utility to extract header value from headers
+String getHeaderValue(String header, String headerName) {
+  return header.substring(strlen(headerName.c_str()));
+}
 
 void updateController()
 {
     // Clear screen
     clearMainArea();
 
-    tft.setFreeFont(FSS12);
+    tft.setFreeFont(FSS18);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString("Coming soon...", 5, 50);
+    tft.drawString("Update starting.", 5, 55);
+    tft.setFreeFont(FSS12);
+    tft.drawString("This process can take a few", 5, 105);
+    tft.drawString("minutes.", 5, 130);
+
+    // Download and update this device
+    Serial.println("Connecting to: " + String(amplipiHostIP));
+    int port = 80;
+#if DEBUG_WEBSERVER
+        port = 5000;
+#endif
+    
+    // For showing errors on screen.
+    //tft.setFreeFont(FSS9);
+    //tft.setCursor(0, 170, 1);
+
+    // Connect to HTTP
+    WiFiClient client;
+    if (client.connect(amplipiHostIP.c_str(), port)) {
+        // Connection Succeed.
+        // Fecthing the bin
+        Serial.println("Fetching Bin: " + String(controllerBin));
+
+        // Get the contents of the bin file
+        client.print(String("GET ") + controllerBin + " HTTP/1.1\r\n" +
+                    "Host: " + amplipiHostIP + "\r\n" +
+                    "Cache-Control: no-cache\r\n" +
+                    "Connection: close\r\n\r\n");
+
+        // Check what is being sent
+        //    Serial.print(String("GET ") + controllerBin + " HTTP/1.1\r\n" +
+        //                 "Host: " + amplipiHostIP + "\r\n" +
+        //                 "Cache-Control: no-cache\r\n" +
+        //                 "Connection: close\r\n\r\n");
+
+        unsigned long timeout = millis();
+        while (client.available() == 0) {
+            if (millis() - timeout > 5000) {
+                drawWarning("Client timeout");
+                Serial.println("Client Timeout !");
+                client.stop();
+                return;
+            }
+        }
+        // Once the response is available,
+        // check stuff
+
+        /*
+        Response Structure
+            HTTP/1.1 200 OK
+            x-amz-id-2: NVKxnU1aIQMmpGKhSwpCBh8y2JPbak18QLIfE+OiUDOos+7UftZKjtCFqrwsGOZRN5Zee0jpTd0=
+            x-amz-request-id: 2D56B47560B764EC
+            Date: Wed, 14 Jun 2017 03:33:59 GMT
+            Last-Modified: Fri, 02 Jun 2017 14:50:11 GMT
+            ETag: "d2afebbaaebc38cd669ce36727152af9"
+            Accept-Ranges: bytes
+            Content-Type: application/octet-stream
+            Content-Length: 357280
+            Server: AmazonS3
+                                    
+            {{BIN FILE CONTENTS}}
+        */
+        while (client.available()) {
+            // read line till /n
+            String line = client.readStringUntil('\n');
+            // remove space, to check if the line is end of headers
+            line.trim();
+//tft.println(String(line));
+            // if the the line is empty,
+            // this is end of headers
+            // break the while and feed the
+            // remaining `client` to the
+            // Update.writeStream();
+            if (!line.length()) {
+                //headers ended
+                break; // and get the OTA started
+            }
+
+            // Check if the HTTP Response is 200
+            // else break and Exit Update
+            if (line.startsWith("HTTP/1.1")) {
+                if (line.indexOf("200") < 0) {
+                    drawWarning("Update file unavailable");
+                    Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
+                    break;
+                }
+            }
+
+            // extract headers here
+            // Start with content length.  Lower case header required because of AmpliPi's HTTP server
+            if (line.startsWith("content-length: ")) {
+                contentLength = atol((getHeaderValue(line, "content-length: ")).c_str());
+                Serial.println("Got " + String(contentLength) + " bytes from server");
+            }
+
+            // Next, the content type. Lower case header required because of AmpliPi's HTTP server
+            if (line.startsWith("content-type: ")) {
+                String contentType = getHeaderValue(line, "Content-Type: ");
+                Serial.println("Got " + contentType + " payload.");
+                if (contentType == "application/octet-stream") {
+                    isValidContentType = true;
+                }
+            }
+        }
+    } else {
+        // Connect to HTTP failed
+        // May be try?
+        // Probably a choppy network?
+        drawWarning("Unable to connect to AmpliPi");
+        Serial.println("Connection to " + String(amplipiHostIP) + " failed. Please check your setup");
+        // retry??
+        // execOTA();
+    }
+
+    // Check what is the contentLength and if content type is `application/octet-stream`
+    Serial.println("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
+
+    // check contentLength and content type
+    if (contentLength && isValidContentType) {
+        // Check if there is enough to OTA Update
+        bool canBegin = Update.begin(contentLength);
+
+        // If yes, begin
+        if (canBegin) {
+            Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
+            // No activity would appear on the Serial monitor
+            // So be patient. This may take 2 - 5mins to complete
+            size_t written = Update.writeStream(client);
+
+            if (written == contentLength) {
+                Serial.println("Written : " + String(written) + " successfully");
+            } else {
+                Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?" );
+                // retry??
+                // execOTA();
+            }
+
+            if (Update.end()) {
+                Serial.println("OTA done!");
+                if (Update.isFinished()) {
+                    Serial.println("Update successfully completed. Rebooting.");
+                    ESP.restart();
+                } else {
+                    drawWarning("Error updating");
+                    Serial.println("Update not finished? Something went wrong!");
+                }
+            } else {
+                drawWarning("Error occurred while updating");
+                Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+            }
+        } else {
+            // not enough space to begin OTA
+            // Understand the partitions and
+            // space availability
+            drawWarning("Not enough space for update");
+            Serial.println("Not enough space to begin OTA");
+            client.flush();
+        }
+    } else {
+        drawWarning("Update file was not valid");
+        Serial.println("There was no content in the response");
+        client.flush();
+    }
+
 
     // Close button
-    tft.setFreeFont(FSS9);
+    tft.setFreeFont(FSS12);
     tft.setTextDatum(TC_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
 
     tft.fillRoundRect(LEFTBUTTON_X, LEFTBUTTON_Y, LEFTBUTTON_W, LEFTBUTTON_H, 6, TFT_DARKGREY);
-    tft.drawString("Close", (MAINZONE_X + 50), 292);
+    tft.drawString("Close", (MAINZONE_X + 60), (LEFTBUTTON_Y + 15));
     tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
 }
@@ -1972,8 +2228,8 @@ void loop() {
         {
             Serial.println("Turning screen back on");
 
-            // Reload main metadata screen
-            activeScreen = "metadata";
+            // Reload main selection screen
+            activeScreen = "select";
             metadata_refresh = true;
             updateSource = true;
             updateMute1 = true;
@@ -1991,7 +2247,7 @@ void loop() {
             else {
                 drawMuteBtn(1);
             }
-            drawSource();
+            //drawSource();
             drawMetadata();
             drawAlbumart();
 
@@ -1999,10 +2255,10 @@ void loop() {
 
             delay(200); // debounce
         }
-        else if (activeScreen == "metadata")
+        else if (activeScreen == "select")
         {
-            // Main Metadata screen
-            Serial.println("Current screen: metadata");
+            // Main Selection screen
+            Serial.println("Current screen: select");
 
             // Source Select (location: top right)
             if ((x >= SRCBUTTON_X) && (x <= (SRCBUTTON_X + SRCBUTTON_W)) && (y >= SRCBUTTON_Y) && (y <= (SRCBUTTON_Y + SRCBUTTON_H)))
@@ -2019,6 +2275,17 @@ void loop() {
                 activeScreen = "off";
                 powerOffScreen();
                 Serial.print("Power off screen button hit.");
+                delay(200); // Debounce
+            }
+
+            if ((x >= ALBUMART_X) && (x <= (ALBUMART_X + ALBUMART_W)) && (y >= ALBUMART_Y) && (y <= (ALBUMART_Y + ALBUMART_H)))
+            {
+                activeScreen = "metadata";
+                Serial.print("Switching to full screen metadata mode");
+
+                clearMainArea();
+                drawMetadata();
+                drawAlbumart();
                 delay(200); // Debounce
             }
 
@@ -2121,6 +2388,35 @@ void loop() {
                 }
                 delay(100); // Debounce
             }
+        }
+        else if (activeScreen == "metadata")
+        {
+            // Main Selection screen
+            Serial.println("Current screen: metadata");
+
+            // Reload main selection screen
+            activeScreen = "select";
+            metadata_refresh = true;
+            updateSource = true;
+            updateMute1 = true;
+            updateMute2 = true;
+            updateAlbumart = true;
+            updateVol1 = true;
+            updateVol2 = true;
+            currentSourceOffset = 0;
+
+            drawSource();
+            if (amplipiZone2Enabled) {
+                drawMuteBtn(1);
+                drawMuteBtn(2);
+            }
+            else {
+                drawMuteBtn(1);
+            }
+            //drawSource();
+            drawMetadata();
+            drawAlbumart();
+
         }
         else if (activeScreen == "source")
         {
@@ -2258,54 +2554,54 @@ void loop() {
         else if (activeScreen == "setting")
         {
             // Zone 1 Change
-            if ((y > 40) && (y <= 80))
+            if ((y > 50) && (y <= 90))
             {
-                if ((x > 160) && (x < 200)) { --newAmplipiZone1; } // Decrement zone number
-                else if ((x > 200) && (x < 240)) { ++newAmplipiZone1; } // Increment zone number
+                if ((x > (TFT_WIDTH - 80)) && (x < (TFT_WIDTH - 40))) { --newAmplipiZone1; } // Decrement zone number
+                else if ((x > (TFT_WIDTH - 40)) && (x < TFT_WIDTH)) { ++newAmplipiZone1; } // Increment zone number
 
                 if (newAmplipiZone1 < 0) { newAmplipiZone1 = 0; }
-                else if (newAmplipiZone1 > 3) { newAmplipiZone1 = 3; }
+                else if (newAmplipiZone1 > 5) { newAmplipiZone1 = 5; }
 
                 tft.fillRect(0, 41, 160, 38, TFT_BLACK);
-                tft.drawString("Zone 1: " + String(newAmplipiZone1), 5, 50);
+                tft.drawString("Zone 1: " + String(newAmplipiZone1), 5, 55);
             }
             // Zone 2 Change
-            else if ((y > 80) && (y <= 120))
+            else if ((y > 90) && (y <= 130))
             {
-                if ((x > 160) && (x < 200)) { --newAmplipiZone2; } // Decrement zone number
-                else if ((x > 200) && (x < 240)) { ++newAmplipiZone2; } // Increment zone number
+                if ((x > (TFT_WIDTH - 80)) && (x < (TFT_WIDTH - 40))) { --newAmplipiZone2; } // Decrement zone number
+                else if ((x > (TFT_WIDTH - 40)) && (x < TFT_WIDTH)) { ++newAmplipiZone2; } // Increment zone number
 
                 if (newAmplipiZone2 < -1) { newAmplipiZone2 = -1; }
-                else if (newAmplipiZone2 > 3) { newAmplipiZone2 = 3; }
+                else if (newAmplipiZone2 > 5) { newAmplipiZone2 = 5; }
                 
                 String thisZone;
                 if (newAmplipiZone2 < 0) { thisZone = "None"; }
                 else { thisZone = String(newAmplipiZone2); }
 
                 tft.fillRect(0, 81, 160, 38, TFT_BLACK);
-                tft.drawString("Zone 2: " + thisZone, 5, 90);
+                tft.drawString("Zone 2: " + thisZone, 5, 95);
             }
             // Source Change
-            else if ((y > 120) && (y <= 160))
+            else if ((y > 130) && (y <= 170))
             {
-                if ((x > 160) && (x < 200)) { --newAmplipiSource; } // Decrement source number
-                else if ((x > 200) && (x < 240)) { ++newAmplipiSource; } // Increment source number
+                if ((x > (TFT_WIDTH - 80)) && (x < (TFT_WIDTH - 40))) { --newAmplipiSource; } // Decrement source number
+                else if ((x > (TFT_WIDTH - 40)) && (x < TFT_WIDTH)) { ++newAmplipiSource; } // Increment source number
 
                 if (newAmplipiSource < 0) { newAmplipiSource = 0; }
                 else if (newAmplipiSource > 3) { newAmplipiSource = 3; }
 
                 tft.fillRect(0, 121, 160, 38, TFT_BLACK);
-                tft.drawString("Source: " + String(newAmplipiSource), 5, 130);
+                tft.drawString("Source: " + String(newAmplipiSource), 5, 135);
             }
 
             // Restart
-            if ((y >= 170) && (y < 210))
+            if ((y >= 180) && (y < 220))
             {
                 ESP.restart();
             }
 
             // Re-calibrate Touchscreen
-            if ((y >= 210) && (y < 250))
+            if ((y >= 220) && (y < 260))
             {
                 // Delete TouchCalData file and reboot
                 if (SPIFFS.exists(CALIBRATION_FILE))
@@ -2317,7 +2613,7 @@ void loop() {
             }
 
             // Rotate Touchscreen
-            if ((y >= 250) && (y < 282))
+            if ((y >= 260) && (y < 292))
             {
                 uint8_t currentRotation = tft.getRotation();
                 Serial.print("Current rotation: ");

@@ -61,10 +61,12 @@ A 3D printable faceplate design will be available after the first controller rel
 Note: WiFi functionality on the ESP32-PoE is not available in this repo. If WiFi is needed, use the WiFi repo: https://github.com/kjk2010/AmpliPi-Touchscreen-Keypad 
 
 #### To do items for first release
-- [ ] Add controller update support from local AmpliPi source (will require a minor AmpliPi web server modification)
-- [ ] Fix touch locations for buttons on settings page on larger screens
+- [ ] Publish compiled binary
+- [ ] Increase image sizes on screen to improve UX
 
 #### Finished items
+- [x] Add controller update support from local AmpliPi source (will require a minor AmpliPi web server modification)
+- [x] Fix touch locations for buttons on settings page on larger screens
 - [x] Add rotation setting to settings screen
 - [x] Fix bug where top source bar is blank on startup if source is "None"
 - [x] Update GUI design, including source selection buttons
